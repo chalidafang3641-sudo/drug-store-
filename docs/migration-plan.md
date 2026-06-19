@@ -322,6 +322,16 @@ npm run legacy:reconcile
 
 ## Phase 6.5: Legacy UI/API Smoke Test
 
+เป้าหมายของ phase นี้คือพิสูจน์ว่า UI เดิมสามารถคุยกับ backend ใหม่ที่ใช้ Supabase Postgres ได้โดยคง action API contract เดิมไว้ก่อน
+
+สถานะ function parity:
+
+- [x] Read-only API หลักทำงานกับ Supabase data แล้ว
+- [x] Legacy data ถูก import/reconcile แล้ว
+- [ ] Write workflow ยังไม่ verify แบบ rollback/test database
+- [ ] Browser smoke test ของ UI เดิมยังไม่เสร็จ
+- [ ] ยังไม่ claim production parity 100%
+
 - [x] รัน Node/Express API เดิมกับ Supabase Postgres remote
 - [x] Smoke test `branding`
 - [x] Smoke test `login` ด้วย admin seed
@@ -341,6 +351,19 @@ npm run legacy:reconcile
   - `disposeItem`
   - `adjustItem`
 - [ ] Smoke test frontend เดิมใน browser โดย point `window.TW_API_URL` ไป backend ใหม่
+
+Acceptance criteria ก่อนถือว่า UI เดิมทำงานเหมือนเดิม:
+
+- [ ] Login/logout/session ทำงานใน browser จริง
+- [ ] Dashboard แสดงยอดตรงกับ reconciliation
+- [ ] รับยาเข้าแล้ว stock และ transaction เปลี่ยนถูกต้อง
+- [ ] ย้ายยาแล้วต้นทาง/ปลายทางและ transaction ถูกต้อง
+- [ ] ตัดจ่ายแล้ว item lifecycle และ transaction ถูกต้อง
+- [ ] ตรวจนับแล้ว qty/status/transaction ถูกต้อง
+- [ ] Settings read/write ไม่ลบ notification secret โดยไม่ตั้งใจ
+- [ ] Upload logo/drug image ใช้ Supabase Storage หรือ fallback ที่กำหนดไว้ชัดเจน
+- [ ] Export/history/search ทำงานกับข้อมูล Supabase
+- [ ] ทดสอบ mobile viewport และ browser console/network ไม่มี error สำคัญ
 
 ## Phase 7: QA
 

@@ -742,6 +742,7 @@ Constraints:
 - `docs/design.md` ที่ copy มาจาก ns-erp ยังมีบริบทของระบบอื่น ต้องปรับให้ตรงกับ Drug Store ภายหลัง
 - SvelteKit scaffold ปัจจุบันยังเป็น placeholder ที่ query `countries`; ยังไม่ใช่ UI จริงของ Drug Store
 - Legacy UI/API read-only smoke test ผ่านกับ Supabase Postgres แล้ว แต่ write workflows (`receiveItem`, `exchangeItem`, `disposeItem`, `adjustItem`) ยังต้องทดสอบแบบ rollback/test database ก่อน claim ว่าเหมือนเดิมครบ
+- ห้ามถือว่า function parity ของ UI เดิมครบจนกว่า browser smoke test และ write workflow smoke test ผ่านครบ โดยต้องตรวจ stock balance, transaction record, item lifecycle และ error/auth response shape
 - backend PostgreSQL local ยังไม่ส่ง Telegram/LINE จริง
 - UI filter ประวัติยังไม่มีปุ่ม `adjust` แยก แม้ backend รองรับแล้ว
 - สิทธิ์ `disposeItem` ใช้ permission `receive`; อาจต้องพิจารณาแยกเป็น `stock` หรือ `dispose`

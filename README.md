@@ -58,6 +58,19 @@ npm run legacy:reconcile
 - Backend ใหม่ผ่าน read-only smoke test กับ API contract เดิมแล้ว: login, locations, drugs, dashboard, stock, search, history
 - Write workflows ยังต้อง smoke test แบบ rollback/test database ก่อน claim ว่าทำงานเหมือนระบบเดิมครบ: receive, exchange, dispose, adjust
 
+## Function Parity Status
+
+เป้าหมายคือให้ UI เดิมและ flow งานหลักทำงานเหมือนเดิมผ่าน API contract เดิมก่อน แล้วค่อยย้ายไป SvelteKit ทีละส่วน
+
+สถานะปัจจุบัน:
+
+- Read-only workflow หลักผ่านกับ Supabase แล้ว: login/session check, dashboard, locations, drugs, stock, search, recent receive/exchange, low stock
+- ข้อมูลเก่าถูก import และ reconcile แล้ว แต่รูป/โลโก้ยังอยู่ local asset folder รอ upload เข้า Supabase Storage
+- Write workflow ยังไม่ถือว่า verify ครบจนกว่าจะทดสอบแบบ rollback/test database: receive, exchange, dispose, adjust
+- SvelteKit files ที่มีอยู่ยังเป็น placeholder smoke test ไม่ใช่ UI จริงของระบบยา
+
+ดังนั้นคำตอบเชิงสถานะคือ backend ใหม่เริ่มรองรับ UI เดิมได้แล้วในงานอ่านข้อมูลหลัก แต่ยังต้องปิด QA งานเขียนข้อมูลก่อนจึงจะบอกได้ว่า function งานหลักเหมือนเดิมครบ
+
 ---
 
 ## ติดตั้ง
