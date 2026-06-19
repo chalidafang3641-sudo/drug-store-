@@ -3,12 +3,18 @@
   export let form;
 
   $: values = form?.values || {
-    drug_id: '',
+    drug_id: data.selectedDrugId || '',
     lot_no: '',
     expiry_date: '',
     qty: 1,
     location_id: data.defaultLocationId || ''
   };
+
+  function todayLocal() {
+    const now = new Date();
+    const offsetMs = now.getTimezoneOffset() * 60000;
+    return new Date(now.getTime() - offsetMs).toISOString().slice(0, 10);
+  }
 </script>
 
 <main class="receive-shell">
@@ -21,13 +27,27 @@
   </section>
 
   <section class="content-grid">
+    <section class="quick-tools">
+      <form method="GET" action="/receive" class="scan-form">
+        <label>
+          <span>ยิงบาร์โค้ด / ค้นหายา</span>
+          <input name="q" value={data.q || ''} autocomplete="off" placeholder="ยิง barcode หรือพิมพ์ชื่อยา" />
+        </label>
+        <button type="submit">ค้นหา</button>
+      </form>
+      <a class="export-link" href={`/settings/export?kind=receive&from=${todayLocal()}&to=${todayLocal()}`}>Export วันนี้</a>
+      {#if data.scanMessage}
+        <p class:ok={!!data.selectedDrugId} class:error={!data.selectedDrugId}>{data.scanMessage}</p>
+      {/if}
+    </section>
+
     <form method="POST" class="receive-form">
       <label>
         <span>รายการยา</span>
         <select name="drug_id" required>
           <option value="">เลือกยา</option>
           {#each data.drugs as drug}
-            <option value={drug.id} selected={values.drug_id === drug.id}>
+            <option value={drug.id} selected={(values.drug_id || data.selectedDrugId) === drug.id}>
               {drug.name}{drug.code ? ` · ${drug.code}` : ''}{drug.require_lot ? ' · Lot บังคับ' : ''}
             </option>
           {/each}
@@ -133,6 +153,25 @@
     gap: 16px;
   }
 
+  .quick-tools {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+    align-items: end;
+    padding: 16px;
+    border: 1px solid #dedbe8;
+    border-radius: 8px;
+    background: #fff;
+  }
+
+  .scan-form {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+    align-items: end;
+  }
+
   .receive-form,
   .recent {
     border: 1px solid #dedbe8;
@@ -170,6 +209,19 @@
     color: #fff;
     font: inherit;
     font-weight: 800;
+  }
+
+  .export-link {
+    display: inline-grid;
+    place-items: center;
+    min-height: 46px;
+    padding: 0 14px;
+    border-radius: 8px;
+    background: #067647;
+    color: #fff;
+    font-weight: 800;
+    text-decoration: none;
+    white-space: nowrap;
   }
 
   .error,
@@ -244,6 +296,8 @@
   @media (max-width: 820px) {
     .page-head,
     .content-grid,
+    .quick-tools,
+    .scan-form,
     article {
       align-items: stretch;
       display: flex;

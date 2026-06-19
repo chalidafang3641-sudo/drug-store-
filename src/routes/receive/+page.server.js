@@ -1,11 +1,12 @@
 import { fail, redirect } from '@sveltejs/kit';
 import { handleApiPayload } from '../../../server/index.js';
 
-export async function load({ locals }) {
+export async function load({ locals, url }) {
   if (!locals.user) {
     redirect(303, '/login');
   }
 
+  const q = String(url.searchParams.get('q') || '').trim();
   const [drugs, locations, recent] = await Promise.all([
     handleApiPayload({ action: 'getDrugs', token: locals.token }),
     handleApiPayload({ action: 'getLocations', token: locals.token }),
@@ -18,9 +19,23 @@ export async function load({ locals }) {
 
   const locationList = locations.data || [];
   const defaultLocation = locationList.find((location) => location.is_default_receive) || locationList[0] || null;
+  const drugList = drugs.data || [];
+  const foundByCode = q
+    ? await handleApiPayload({ action: 'findDrugByCode', token: locals.token, code: q })
+    : { status: 'skipped' };
+  const selectedDrugId = foundByCode.status === 'success' && foundByCode.drug ? foundByCode.drug.id : '';
+  const filteredDrugs = q && !selectedDrugId
+    ? drugList.filter((drug) => {
+        const query = q.toLowerCase();
+        return drug.name.toLowerCase().includes(query) || String(drug.code || '').toLowerCase().includes(query);
+      })
+    : drugList;
 
   return {
-    drugs: drugs.data || [],
+    q,
+    selectedDrugId,
+    scanMessage: q ? (selectedDrugId ? `พบยา: ${foundByCode.drug.name}` : `ไม่พบยา/บาร์โค้ด: ${q}`) : '',
+    drugs: filteredDrugs,
     locations: locationList,
     defaultLocationId: defaultLocation?.id || '',
     recent: recent.status === 'success' ? recent.data || [] : []
