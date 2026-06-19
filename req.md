@@ -741,13 +741,13 @@ Constraints:
 ## 26. ช่องว่าง/ข้อสังเกตจากโค้ดปัจจุบัน
 
 - `docs/design.md` ที่ copy มาจาก ns-erp ยังมีบริบทของระบบอื่น ต้องปรับให้ตรงกับ Drug Store ภายหลัง
-- SvelteKit scaffold ปัจจุบัน build ได้แล้ว, root page อ่าน branding/counts จาก Drug Store Postgres แทน `countries`, login/protected layout ใช้ legacy session cookie แล้ว, dashboard route อ่าน `getDashboard` จริง, stock route อ่าน `getLocationStock`/`getLocationItems` จริงและ submit `disposeItem` ได้ผ่าน form action, receive route submit `receiveItem` ได้ผ่าน form action และ exchange route submit `exchangeItem` ได้ผ่าน form action; settings route ยังเป็น placeholder และ barcode/camera/export-today ใน receive ยังไม่ถูก migrate
+- SvelteKit scaffold ปัจจุบัน build ได้แล้ว, root page อ่าน branding/counts จาก Drug Store Postgres แทน `countries`, login/protected layout ใช้ legacy session cookie แล้ว, dashboard route อ่าน `getDashboard` จริง, stock route อ่าน `getLocationStock`/`getLocationItems` จริงและ submit `disposeItem` ได้ผ่าน form action, receive route submit `receiveItem` ได้ผ่าน form action, exchange route submit `exchangeItem` ได้ผ่าน form action และ settings route มี config/users/history filters/stock audit พื้นฐานแล้ว; master data ยา/สถานที่, notification, export UI และ barcode/camera/export-today ใน receive ยังไม่ถูก migrate ครบ
 - Legacy UI/API read-only smoke test ผ่านกับ Supabase Postgres แล้ว
 - Write workflow smoke test ผ่านแล้วสำหรับ `receiveItem`, `exchangeItem`, `disposeItem`, `adjustItem` โดยใช้ `SMOKE-` lot, remote guard, captured ids cleanup และ post-check ว่าไม่เหลือ test rows
 - Browser smoke test ของ UI เดิมผ่านแล้วเมื่อ point `window.TW_API_URL` ไป backend ใหม่; ตรวจ login/session, dashboard/imported data, locations, receive, exchange, settings และ console error สำคัญ
 - ยังไม่ถือว่า production parity 100% จนกว่า negative/permission tests, export/history filters, settings write, notification worker และ SvelteKit cutover ผ่านครบ
 - backend PostgreSQL local ยังไม่ส่ง Telegram/LINE จริง
-- UI filter ประวัติยังไม่มีปุ่ม `adjust` แยก แม้ backend รองรับแล้ว
+- SvelteKit settings history filter มีปุ่ม `adjust` แล้ว แต่ legacy UI filter เดิมยังไม่มีปุ่ม `adjust` แยก
 - สิทธิ์ `disposeItem` ใช้ permission `receive`; อาจต้องพิจารณาแยกเป็น `stock` หรือ `dispose`
 - local backend static serve frontend จาก root เดียวกับ API เหมาะกับ dev แต่ production บน Vercel/Supabase ควรแยก config ให้ชัด
 - Apps Script backend และ local backend มี contract ใกล้กัน แต่ implementation storage ต่างกัน: Google Sheets/Drive เทียบกับ PostgreSQL/Supabase Storage พร้อม local `uploads/` fallback
