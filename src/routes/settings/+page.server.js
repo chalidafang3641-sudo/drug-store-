@@ -16,6 +16,11 @@ function hasStock(user) {
   return permissions.includes('*') || permissions.includes('stock');
 }
 
+function hasDrug(user) {
+  const permissions = user?.permissions || [];
+  return permissions.includes('*') || permissions.includes('drug');
+}
+
 async function api(action, token, params = {}) {
   return handleApiPayload({ action, token, ...params });
 }
@@ -30,12 +35,14 @@ export async function load({ locals, url }) {
   const historyType = url.searchParams.get('type') || '';
   const admin = hasAdmin(locals.user);
   const stockAccess = hasStock(locals.user);
+  const drugAccess = hasDrug(locals.user);
 
-  const [locations, history, config, users, selectedItems] = await Promise.all([
+  const [locations, history, config, users, drugs, selectedItems] = await Promise.all([
     api('getLocations', locals.token),
     api('getHistory', locals.token, { type: historyType, limit: 30 }),
     admin ? api('getConfig', locals.token) : Promise.resolve({ status: 'skipped' }),
     admin ? api('getUsers', locals.token) : Promise.resolve({ status: 'skipped', data: [] }),
+    drugAccess ? api('getDrugs', locals.token) : Promise.resolve({ status: 'skipped', data: [] }),
     selectedLocationId && stockAccess
       ? api('getLocationItems', locals.token, { location_id: selectedLocationId })
       : Promise.resolve({ status: 'skipped', data: [] })
@@ -56,7 +63,9 @@ export async function load({ locals, url }) {
     user: locals.user,
     canAdmin: admin,
     canStock: stockAccess,
+    canDrug: drugAccess,
     locations: locationList,
+    drugs: drugs.status === 'success' ? drugs.data || [] : [],
     selectedLocation,
     selectedItems: selectedItems.status === 'success' ? selectedItems.data || [] : [],
     history: history.status === 'success' ? history.data || [] : [],
@@ -142,5 +151,80 @@ export const actions = {
       return fail(400, { message: result.message || 'บันทึกตรวจนับไม่สำเร็จ' });
     }
     redirect(303, `/settings?tab=audit&location_id=${encodeURIComponent(selectedLocationId)}&message=${encodeURIComponent(result.message || 'บันทึกตรวจนับแล้ว')}`);
+  },
+
+  saveLocation: async ({ request, locals }) => {
+    if (!locals.user) redirect(303, '/login');
+
+    const form = await request.formData();
+    const payload = {
+      id: String(form.get('id') || ''),
+      name: String(form.get('name') || '').trim(),
+      icon: String(form.get('icon') || 'box').trim(),
+      color: String(form.get('color') || '#16A34A').trim()
+    };
+    if (!payload.id) delete payload.id;
+
+    const result = await api('saveLocation', locals.token, { location: payload });
+    if (result.status !== 'success') {
+      return fail(400, { message: result.message || 'บันทึกสถานที่ไม่สำเร็จ' });
+    }
+    redirect(303, `/settings?tab=locations&message=${encodeURIComponent(result.message || 'บันทึกสถานที่แล้ว')}`);
+  },
+
+  deleteLocation: async ({ request, locals }) => {
+    if (!locals.user) redirect(303, '/login');
+
+    const form = await request.formData();
+    const result = await api('deleteLocation', locals.token, { id: String(form.get('id') || '') });
+    if (result.status !== 'success') {
+      return fail(400, { message: result.message || 'ลบสถานที่ไม่สำเร็จ' });
+    }
+    redirect(303, `/settings?tab=locations&message=${encodeURIComponent(result.message || 'ลบสถานที่แล้ว')}`);
+  },
+
+  setDefaultReceive: async ({ request, locals }) => {
+    if (!locals.user) redirect(303, '/login');
+
+    const form = await request.formData();
+    const result = await api('setDefaultReceive', locals.token, { id: String(form.get('id') || '') });
+    if (result.status !== 'success') {
+      return fail(400, { message: result.message || 'ตั้งจุดรับเข้าไม่สำเร็จ' });
+    }
+    redirect(303, `/settings?tab=locations&message=${encodeURIComponent(result.message || 'ตั้งจุดรับเข้าแล้ว')}`);
+  },
+
+  saveDrug: async ({ request, locals }) => {
+    if (!locals.user) redirect(303, '/login');
+
+    const form = await request.formData();
+    const payload = {
+      id: String(form.get('id') || ''),
+      name: String(form.get('name') || '').trim(),
+      code: String(form.get('code') || '').trim(),
+      unit: String(form.get('unit') || '').trim(),
+      min_qty: Number(form.get('min_qty') || 0),
+      default_location_id: String(form.get('default_location_id') || ''),
+      require_lot: form.get('require_lot') === 'on',
+      image_file_id: String(form.get('image_file_id') || '')
+    };
+    if (!payload.id) delete payload.id;
+
+    const result = await api('saveDrug', locals.token, { drug: payload });
+    if (result.status !== 'success') {
+      return fail(400, { message: result.message || 'บันทึกรายการยาไม่สำเร็จ' });
+    }
+    redirect(303, `/settings?tab=drugs&message=${encodeURIComponent(result.message || 'บันทึกรายการยาแล้ว')}`);
+  },
+
+  deleteDrug: async ({ request, locals }) => {
+    if (!locals.user) redirect(303, '/login');
+
+    const form = await request.formData();
+    const result = await api('deleteDrug', locals.token, { id: String(form.get('id') || '') });
+    if (result.status !== 'success') {
+      return fail(400, { message: result.message || 'ลบรายการยาไม่สำเร็จ' });
+    }
+    redirect(303, `/settings?tab=drugs&message=${encodeURIComponent(result.message || 'ลบรายการยาแล้ว')}`);
   }
 };

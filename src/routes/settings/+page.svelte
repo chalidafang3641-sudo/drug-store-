@@ -5,6 +5,8 @@
   const tabs = [
     { id: 'general', label: 'ระบบ' },
     { id: 'users', label: 'ผู้ใช้' },
+    { id: 'drugs', label: 'ยา' },
+    { id: 'locations', label: 'สถานที่' },
     { id: 'history', label: 'ประวัติ' },
     { id: 'audit', label: 'ตรวจนับ' }
   ];
@@ -140,6 +142,108 @@
         </div>
       {:else}
         <p class="empty">เฉพาะผู้ดูแลระบบเท่านั้นที่จัดการผู้ใช้ได้</p>
+      {/if}
+    </section>
+  {:else if data.tab === 'drugs'}
+    <section class="panel">
+      <div class="section-head">
+        <h2>รายการยา</h2>
+        <span>{data.drugs.length} รายการ</span>
+      </div>
+      {#if data.canDrug}
+        <form method="POST" action="?/saveDrug" class="master-form">
+          <h3>เพิ่มยา</h3>
+          <input name="name" placeholder="ชื่อยา" autocomplete="off" />
+          <input name="code" placeholder="Barcode / code" autocomplete="off" />
+          <input name="unit" placeholder="หน่วย" autocomplete="off" />
+          <input name="min_qty" type="number" min="0" placeholder="ขั้นต่ำ" />
+          <select name="default_location_id">
+            <option value="">สถานที่เริ่มต้น</option>
+            {#each data.locations as location}
+              <option value={location.id}>{location.name}</option>
+            {/each}
+          </select>
+          <label class="check-line"><input name="require_lot" type="checkbox" checked /> <span>บังคับ Lot</span></label>
+          <button type="submit">เพิ่มยา</button>
+        </form>
+
+        <div class="master-list">
+          {#each data.drugs as drug}
+            <article class="master-card">
+              <form method="POST" action="?/saveDrug">
+                <input type="hidden" name="id" value={drug.id} />
+                <div class="master-title">
+                  <strong>{drug.name}</strong>
+                  <small>{drug.code || 'ไม่มี barcode'} · {drug.unit || 'ไม่ระบุหน่วย'}</small>
+                </div>
+                <input name="name" value={drug.name} autocomplete="off" />
+                <input name="code" value={drug.code || ''} autocomplete="off" />
+                <input name="unit" value={drug.unit || ''} autocomplete="off" />
+                <input name="min_qty" type="number" min="0" value={drug.min_qty || 0} />
+                <select name="default_location_id">
+                  <option value="">ไม่ระบุ</option>
+                  {#each data.locations as location}
+                    <option value={location.id} selected={location.id === drug.default_location_id}>{location.name}</option>
+                  {/each}
+                </select>
+                <label class="check-line"><input name="require_lot" type="checkbox" checked={drug.require_lot} /> <span>Lot</span></label>
+                <button type="submit">บันทึก</button>
+              </form>
+              <form method="POST" action="?/deleteDrug">
+                <input type="hidden" name="id" value={drug.id} />
+                <button class="danger" type="submit">ลบ</button>
+              </form>
+            </article>
+          {/each}
+        </div>
+      {:else}
+        <p class="empty">บัญชีนี้ไม่มีสิทธิ์จัดการรายการยา</p>
+      {/if}
+    </section>
+  {:else if data.tab === 'locations'}
+    <section class="panel">
+      <div class="section-head">
+        <h2>สถานที่เก็บยา</h2>
+        <span>{data.locations.length} จุด</span>
+      </div>
+      {#if data.canDrug}
+        <form method="POST" action="?/saveLocation" class="master-form location-form">
+          <h3>เพิ่มสถานที่</h3>
+          <input name="name" placeholder="ชื่อสถานที่" autocomplete="off" />
+          <input name="icon" placeholder="icon key" value="box" autocomplete="off" />
+          <input name="color" type="color" value="#16A34A" aria-label="สีสถานที่" />
+          <button type="submit">เพิ่มสถานที่</button>
+        </form>
+
+        <div class="master-list">
+          {#each data.locations as location}
+            <article class="master-card">
+              <form method="POST" action="?/saveLocation">
+                <input type="hidden" name="id" value={location.id} />
+                <div class="master-title">
+                  <strong>{location.name}</strong>
+                  <small>{location.is_default_receive ? 'จุดรับเข้าเริ่มต้น' : 'สถานที่ active'}</small>
+                </div>
+                <input name="name" value={location.name} autocomplete="off" />
+                <input name="icon" value={location.icon || 'box'} autocomplete="off" />
+                <input name="color" type="color" value={location.color || '#16A34A'} aria-label="สีสถานที่" />
+                <button type="submit">บันทึก</button>
+              </form>
+              <div class="inline-actions">
+                <form method="POST" action="?/setDefaultReceive">
+                  <input type="hidden" name="id" value={location.id} />
+                  <button type="submit" disabled={location.is_default_receive}>ตั้งรับเข้า</button>
+                </form>
+                <form method="POST" action="?/deleteLocation">
+                  <input type="hidden" name="id" value={location.id} />
+                  <button class="danger" type="submit">ลบ</button>
+                </form>
+              </div>
+            </article>
+          {/each}
+        </div>
+      {:else}
+        <p class="empty">บัญชีนี้ไม่มีสิทธิ์จัดการสถานที่</p>
       {/if}
     </section>
   {:else if data.tab === 'history'}
@@ -297,6 +401,7 @@
 
   .panel,
   .user-card,
+  .master-card,
   .history-list article,
   .audit-list article {
     border: 1px solid #dedbe8;
@@ -321,10 +426,27 @@
   }
 
   .form-grid,
-  .add-user {
+  .add-user,
+  .master-form {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 12px;
+  }
+
+  .master-form {
+    margin-bottom: 16px;
+    padding: 14px;
+    border: 1px solid #eeeaf5;
+    border-radius: 8px;
+    background: #fbfafc;
+  }
+
+  .master-form h3 {
+    align-self: center;
+  }
+
+  .location-form {
+    grid-template-columns: 1fr 160px 90px auto;
   }
 
   label {
@@ -398,6 +520,7 @@
   }
 
   .user-list,
+  .master-list,
   .history-list,
   .audit-list {
     display: grid;
@@ -408,20 +531,43 @@
     padding: 14px;
   }
 
-  .user-card form:first-child {
+  .master-card {
+    padding: 14px;
+  }
+
+  .user-card form:first-child,
+  .master-card form:first-child {
     display: grid;
     grid-template-columns: 1.2fr repeat(4, minmax(0, 1fr)) auto;
     gap: 10px;
     align-items: end;
   }
 
+  .master-card form:first-child {
+    grid-template-columns: 1.2fr 1.2fr 1fr 0.7fr 0.7fr 1fr auto auto;
+  }
+
+  .master-card form + form,
   .user-card form + form {
     margin-top: 8px;
   }
 
+  .master-title,
   .user-title {
     display: grid;
     gap: 3px;
+  }
+
+  .inline-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+  }
+
+  button:disabled {
+    background: #bdb7cc;
+    cursor: not-allowed;
   }
 
   .history-list article,
@@ -469,7 +615,10 @@
 
     .form-grid,
     .add-user,
+    .master-form,
+    .location-form,
     .user-card form:first-child,
+    .master-card form:first-child,
     .history-list article,
     .audit-list article,
     .location-picker {
