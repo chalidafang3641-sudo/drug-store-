@@ -70,9 +70,9 @@ npm run legacy:reconcile
 - ข้อมูลเก่าถูก import และ reconcile แล้ว; legacy logo ถูกย้ายเข้า Supabase Storage แล้ว
 - Write workflow หลักผ่าน smoke test แล้ว: receive, exchange, dispose, adjust
 - UI เดิมผ่าน browser smoke test กับ backend ใหม่แล้วสำหรับงานหลักที่ตรวจแบบเร็ว
-- SvelteKit scaffold build ได้แล้ว และหน้าแรกเปลี่ยนจาก `countries` placeholder เป็นสถานะ Drug Store ที่อ่านข้อมูลจริงจาก Postgres; routes งานหลักยังเป็น placeholder รอ migrate UI จริง
+- SvelteKit scaffold build ได้แล้ว, login/protected layout ใช้ legacy `app_users` session ผ่าน httpOnly cookie แล้ว, dashboard route อ่าน `getDashboard` จริงจาก Postgres แล้ว; routes งานอื่นยังเป็น placeholder รอ migrate UI จริง
 
-ดังนั้นคำตอบเชิงสถานะคือ backend ใหม่รองรับ UI เดิมได้แล้วในงานหลักระดับ smoke test และ SvelteKit เริ่มรัน/build ได้แล้ว แต่ยังต้องทำ QA เชิงลึก, permission/edge cases, notification/export และย้าย UI จริงเข้า SvelteKit ก่อน production cutover
+ดังนั้นคำตอบเชิงสถานะคือ backend ใหม่รองรับ UI เดิมได้แล้วในงานหลักระดับ smoke test และ SvelteKit เริ่มมี auth/dashboard จริงแล้ว แต่ยังต้องทำ QA เชิงลึก, permission/edge cases, notification/export และย้าย UI งานหลักที่เหลือเข้า SvelteKit ก่อน production cutover
 
 ---
 
