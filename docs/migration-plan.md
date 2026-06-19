@@ -16,10 +16,15 @@ Target stack:
 - Frontend ปัจจุบันเป็น `index.html` + vanilla JavaScript แยกไฟล์ใน `js/`
 - Backend เดิมอยู่ใน `Code.gs` และใช้ Google Sheets เป็น database
 - มี Node/Express local API draft ใน `server/index.js`
-- มี PostgreSQL schema draft ใน `db/schema.sql` ที่ปรับ indexing สำหรับ Supabase/Postgres แล้ว
+- มี PostgreSQL schema baseline ใน `db/schema.sql` ที่ปรับ indexing สำหรับ Supabase/Postgres แล้ว
+- มี Supabase migrations แล้ว:
+  - `supabase/migrations/20260619165255_init_drug_store_schema.sql`
+  - `supabase/migrations/20260619170347_improve_database_design.sql`
+- Apply schema ขึ้น Supabase project `qvbqoxfuqzzffryqkuva` แล้ว
 - มี legacy export script ใน `scripts/export-old-api.mjs`
 - มี legacy asset download script ใน `scripts/download-legacy-assets.mjs`
 - ดึง legacy snapshot ล่าสุดสำเร็จแล้วและเก็บใน `legacy-exports/` ซึ่งถูก `.gitignore`
+- ดึง legacy logo จาก Google Drive มาเก็บใน `uploads/legacy-assets/` แล้ว ซึ่งถูก `.gitignore`
 - มี requirement document ที่แกะจาก frontend/backend แล้วใน `req.md`
 - API pattern ปัจจุบันเป็น action-based:
 
@@ -62,6 +67,46 @@ legacy-exports/legacy-snapshot-summary.json
 ```bash
 OLD_ADMIN_USER=admin OLD_ADMIN_PASSWORD=... npm run legacy:export
 ```
+
+## Latest Legacy Assets
+
+ดึง asset จาก field รูป/โลโก้ใน legacy snapshot ด้วย:
+
+```bash
+npm run legacy:assets
+```
+
+ผลลัพธ์ล่าสุด:
+
+| Asset group | Downloaded | หมายเหตุ |
+| --- | ---: | --- |
+| branding logo | 1 | พบจาก `config.logo_file_id` |
+| drug images | 0 | snapshot ล่าสุดไม่พบรูปยาใน `drugs` |
+| item images | 0 | snapshot ล่าสุดไม่พบรูปใน `active_items` |
+
+ไฟล์ local:
+
+```text
+uploads/legacy-assets/manifest.json
+uploads/legacy-assets/branding/branding_1dVzYk8_DZ-z7FoD02KPX0GmI8W22eWvF.jpg
+```
+
+`uploads/legacy-assets/` เป็น asset จริงและถูก ignore ไม่ให้ commit
+
+## Supabase Remote Status
+
+Project ref: `qvbqoxfuqzzffryqkuva`
+
+สถานะล่าสุด:
+
+- [x] Apply initial schema migration แล้ว
+- [x] Apply improved database design migration แล้ว
+- [x] Verify tables หลักแล้ว: `app_config`, `locations`, `drugs`, `items`, `transactions`, `app_users`, `sessions`, `errors`, `roles`, `profiles`, `legacy_id_map`, `audit_logs`
+- [x] Seed role baseline แล้ว: `admin`, `pharmacist`, `staff`
+- [x] เปิด RLS ทุกตาราง public แล้ว
+- [ ] เพิ่ม RLS policies ตาม role หรือเลือก server-only access ด้วย service role
+- [ ] สร้าง Supabase Storage buckets สำหรับ `branding` และ `drug-images`
+- [ ] Import legacy snapshot เข้า Supabase
 
 ## Phase 0: Foundation
 
@@ -142,15 +187,24 @@ src/routes/api/+server.ts
 ## Phase 3: Supabase/Postgres
 
 - [x] ปรับ `db/schema.sql` ให้เป็น Supabase/Postgres baseline พร้อม indexing ตาม query path หลัก
-- [ ] แปลง `db/schema.sql` เป็น Supabase migration ด้วย Supabase CLI
-- [ ] เพิ่ม Supabase migrations
-- [ ] ตั้ง env ที่จำเป็น:
+- [x] แปลง `db/schema.sql` เป็น Supabase migration
+- [x] เพิ่ม Supabase migrations
+- [x] Apply migrations ไปยัง Supabase remote
+- [x] ตั้ง public Supabase env สำหรับ frontend/client helper:
+
+```text
+PUBLIC_SUPABASE_URL
+PUBLIC_SUPABASE_PUBLISHABLE_KEY
+NEXT_PUBLIC_SUPABASE_URL
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+```
+
+- [ ] ตั้ง server env ที่จำเป็นก่อนทำ import/deploy:
 
 ```text
 DATABASE_URL
 SUPABASE_URL
 SUPABASE_SERVICE_ROLE_KEY
-PUBLIC_SUPABASE_URL
 ```
 
 - [ ] ออกแบบ Supabase Storage buckets:
@@ -160,7 +214,8 @@ branding
 drug-images
 ```
 
-- [ ] วาง RLS/Auth strategy
+- [x] เปิด RLS baseline ทุกตาราง public
+- [ ] วาง RLS/Auth strategy ราย action/role
 - [ ] ทำ reconciliation queries สำหรับ stock และ transactions
 
 Indexing baseline ที่ใส่แล้ว:
@@ -210,6 +265,7 @@ Indexing baseline ที่ใส่แล้ว:
 - [x] ทำ script ดึงข้อมูลจาก Google Apps Script API เดิม
 - [x] ดึง legacy snapshot จาก API เดิมมาเก็บใน `legacy-exports/`
 - [x] ทำ script ดึงรูป/โลโก้จาก legacy snapshot มาเก็บใน `uploads/legacy-assets/`
+- [x] ดาวน์โหลด legacy logo ลง local asset folder แล้ว
 - [ ] ทำ import script จาก `legacy-exports/legacy-snapshot-latest.json` เข้า Postgres/Supabase
 - [ ] ดึงและ upsert ข้อมูล:
 
@@ -226,7 +282,9 @@ users
 - [ ] ทำ dry run mode สำหรับ import
 - [ ] ทำ idempotent upsert เพื่อให้ import ซ้ำแล้วข้อมูลไม่ซ้ำ
 - [ ] ตัดสินใจเรื่อง users: ไม่ย้าย plaintext password, ให้สร้าง/reset password ใหม่หรือใช้ Supabase Auth
-- [ ] ตัดสินใจเรื่องรูปยา/โลโก้: download จาก Google Drive แล้ว upload เข้า Supabase Storage หรือคง URL เดิมชั่วคราว
+- [x] ตัดสินใจเรื่องรูปยา/โลโก้: download จาก Google Drive มาเก็บ local ignored ก่อน
+- [ ] Upload legacy assets เข้า Supabase Storage หลังสร้าง buckets และมี service role key
+- [ ] Update `app_config.logo_file_id` / `logo_url` หรือ storage path หลัง upload เข้า Supabase Storage
 - [ ] ทำ reconciliation หลัง import:
   - จำนวน locations
   - จำนวน active drugs
@@ -260,12 +318,14 @@ users
 
 ## Recommended Next Tasks
 
-1. แตก `req.md` เป็น implementation tickets/batches สำหรับ SvelteKit migration
-2. ทำ import script จาก legacy snapshot เข้า Postgres/Supabase
-3. ทำ reconciliation report เทียบ snapshot กับ target database
-4. Scaffold SvelteKit structure in a reviewable branch
-5. Add `/api` compatibility endpoint
-6. Move current Node/Postgres API into SvelteKit server modules
-7. Connect Supabase Postgres
-8. Implement login + protected layout
-9. Migrate dashboard page
+1. ทำ import script จาก legacy snapshot เข้า Supabase โดยใช้ `legacy_id_map` ให้ import ซ้ำได้
+2. Import `config`, `locations`, `drugs`, `items`, `transactions`, `users` พร้อม dry-run mode
+3. สร้าง reconciliation report เทียบ snapshot กับ Supabase: จำนวน record, stock qty รวม, transaction count, near-expiry count
+4. สร้าง Supabase Storage buckets `branding` และ `drug-images`
+5. Upload legacy assets จาก `uploads/legacy-assets/manifest.json` เข้า Supabase Storage และ update path ใน database
+6. ตัดสินใจ RLS/Auth strategy ระยะสั้น: server-only service role + `app_users` หรือเริ่มผูก Supabase Auth
+7. Scaffold SvelteKit structure in a reviewable branch
+8. Add `/api` compatibility endpoint
+9. Move current Node/Postgres API into SvelteKit server modules
+10. Implement login + protected layout
+11. Migrate dashboard page

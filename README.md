@@ -22,6 +22,28 @@ Frontend: GitHub Pages (กล้องสแกนได้) · Backend: Google
 
 ใช้เอกสารนี้เป็น source of truth สำหรับการย้ายระบบไป SvelteKit + Supabase โดยครอบคลุม workflow, role/permission, API contract, data model, validation, business rules และ gap ที่ต้องทำต่อ
 
+## Legacy Data & Assets
+
+ดึงข้อมูลจาก API เดิมมาเก็บ snapshot local:
+
+```bash
+OLD_ADMIN_USER=admin OLD_ADMIN_PASSWORD=... npm run legacy:export
+```
+
+ดึงรูป/โลโก้ที่อ้างอิงใน snapshot มาเก็บ local:
+
+```bash
+npm run legacy:assets
+```
+
+ผลลัพธ์ถูกเก็บใน `legacy-exports/` และ `uploads/legacy-assets/` ซึ่งถูก `.gitignore` เพราะเป็นข้อมูลจริง/ไฟล์จริงจากระบบเก่า
+
+สถานะล่าสุด:
+
+- Supabase schema ถูก apply ไปยัง project `qvbqoxfuqzzffryqkuva` แล้ว
+- Legacy snapshot ล่าสุดมี config 1, locations 12, drugs 16, active stock items 26, transactions 54, users 2
+- Legacy asset ล่าสุดพบโลโก้ 1 ไฟล์ และยังไม่พบรูปยาใน snapshot
+
 ---
 
 ## ติดตั้ง

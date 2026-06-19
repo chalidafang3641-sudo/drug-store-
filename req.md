@@ -717,6 +717,9 @@ Constraints:
   - ระยะสั้น: คง `app_users` + `sessions`
   - ระยะยาว: ใช้ Supabase Auth แล้ว map role/permissions ใน profile table
 - อัปโหลดรูปควรย้ายไป Supabase Storage
+- รูป/โลโก้จากระบบเก่าต้อง migrate จาก Google Drive URL/file id ผ่าน `uploads/legacy-assets/manifest.json`
+- snapshot ล่าสุดพบ legacy logo 1 ไฟล์จาก `config.logo_file_id` แต่ยังไม่พบรูปยาใน `drugs` หรือ `active_items`
+- asset migration ต้องไม่ commit ไฟล์จริงใน `uploads/legacy-assets/`; ให้ upload เข้า Supabase Storage แล้วเก็บ storage path/reference ใน database
 - Notification ต้องมี worker/cron ใหม่ แทน Apps Script trigger
 - Data migration ต้องใช้ snapshot จาก legacy API:
   - config
