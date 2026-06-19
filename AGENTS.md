@@ -22,6 +22,7 @@ Target direction:
 - Keep the action-based API contract working until the replacement UI is fully stable.
 - Prefer relational Postgres tables and real foreign keys for stock-critical data.
 - Do not store plaintext passwords. If Supabase Auth is adopted, use `auth.users` as the source of truth.
+- For SvelteKit migration work, read `.agents/skills/sveltekit/SKILL.md` first.
 - For Supabase work, read `.agents/skills/supabase/SKILL.md` first.
 - For large refactors, read `.agents/skills/codebase-migrate/SKILL.md` first.
 - For database/schema work, use `docs/agent-rules/database.md`.
