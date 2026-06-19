@@ -16,6 +16,12 @@ Frontend: GitHub Pages (กล้องสแกนได้) · Backend: Google
 
 แผนย้ายระบบไป SvelteKit + Vercel + Supabase อยู่ที่ [`docs/migration-plan.md`](docs/migration-plan.md)
 
+## Requirements
+
+เอกสาร requirement ที่แกะจากโค้ด frontend/backend ปัจจุบันอยู่ที่ [`req.md`](req.md)
+
+ใช้เอกสารนี้เป็น source of truth สำหรับการย้ายระบบไป SvelteKit + Supabase โดยครอบคลุม workflow, role/permission, API contract, data model, validation, business rules และ gap ที่ต้องทำต่อ
+
 ---
 
 ## ติดตั้ง

@@ -19,6 +19,7 @@ Target stack:
 - มี PostgreSQL schema draft ใน `db/schema.sql`
 - มี legacy export script ใน `scripts/export-old-api.mjs`
 - ดึง legacy snapshot ล่าสุดสำเร็จแล้วและเก็บใน `legacy-exports/` ซึ่งถูก `.gitignore`
+- มี requirement document ที่แกะจาก frontend/backend แล้วใน `req.md`
 - API pattern ปัจจุบันเป็น action-based:
 
 ```js
@@ -63,28 +64,31 @@ OLD_ADMIN_USER=admin OLD_ADMIN_PASSWORD=... npm run legacy:export
 
 ## Phase 0: Foundation
 
-- [ ] ยืนยัน stack เป้าหมาย: `SvelteKit + Vercel + Supabase`
+- [x] ยืนยัน stack เป้าหมาย: `SvelteKit + Vercel + Supabase`
 - [ ] สร้าง branch สำหรับ migration เช่น `codex/sveltekit-migration`
-- [ ] สรุป feature เดิมที่ต้อง preserve
-- [ ] แยกงานเป็น batch ขนาดเล็ก ตรวจง่าย และ rollback ได้
+- [x] สรุป feature เดิมที่ต้อง preserve ใน `req.md`
+- [x] แกะ API contract, data model, validation และ business rules จาก frontend/backend ใน `req.md`
+- [ ] แยกงาน implementation เป็น batch ขนาดเล็ก ตรวจง่าย และ rollback ได้
 
 Feature เดิมที่ต้อง preserve:
 
-- [ ] Login/logout/session
-- [ ] Dashboard สรุปยาใกล้หมดอายุและ stock ต่ำ
-- [ ] รับยาเข้า stock
-- [ ] ดู stock ตามสถานที่
-- [ ] ย้าย/แลกยาระหว่างสถานที่
-- [ ] ตัดจ่าย/ทิ้งยา
-- [ ] ตรวจนับและปรับยอด
-- [ ] ตั้งค่าโรงพยาบาล โลโก้ และช่วงแจ้งเตือน
-- [ ] จัดการสถานที่เก็บยา
-- [ ] จัดการรายการยา รูปยา barcode และ Lot required
-- [ ] จัดการผู้ใช้และ role
-- [ ] ประวัติการเคลื่อนไหว
-- [ ] Export Excel / print report
-- [ ] Telegram/LINE notification
-- [ ] PWA/mobile-friendly behavior
+- [x] Login/logout/session
+- [x] Dashboard สรุปยาใกล้หมดอายุและ stock ต่ำ
+- [x] รับยาเข้า stock
+- [x] ดู stock ตามสถานที่
+- [x] ย้าย/แลกยาระหว่างสถานที่
+- [x] ตัดจ่าย/ทิ้งยา
+- [x] ตรวจนับและปรับยอด
+- [x] ตั้งค่าโรงพยาบาล โลโก้ และช่วงแจ้งเตือน
+- [x] จัดการสถานที่เก็บยา
+- [x] จัดการรายการยา รูปยา barcode และ Lot required
+- [x] จัดการผู้ใช้และ role
+- [x] ประวัติการเคลื่อนไหว
+- [x] Export Excel / print report
+- [x] Telegram/LINE notification
+- [x] PWA/mobile-friendly behavior
+
+หมายเหตุ: เครื่องหมาย checked ในส่วนนี้หมายถึง "ถอด requirement แล้ว" ไม่ได้หมายถึง migrate implementation เสร็จแล้ว
 
 ## Phase 1: Scaffold SvelteKit
 
@@ -237,11 +241,12 @@ users
 
 ## Recommended Next Tasks
 
-1. ทำ import script จาก legacy snapshot เข้า Postgres/Supabase
-2. ทำ reconciliation report เทียบ snapshot กับ target database
-3. Scaffold SvelteKit structure in a reviewable branch
-4. Add `/api` compatibility endpoint
-5. Move current Node/Postgres API into SvelteKit server modules
-6. Connect Supabase Postgres
-7. Implement login + protected layout
-8. Migrate dashboard page
+1. แตก `req.md` เป็น implementation tickets/batches สำหรับ SvelteKit migration
+2. ทำ import script จาก legacy snapshot เข้า Postgres/Supabase
+3. ทำ reconciliation report เทียบ snapshot กับ target database
+4. Scaffold SvelteKit structure in a reviewable branch
+5. Add `/api` compatibility endpoint
+6. Move current Node/Postgres API into SvelteKit server modules
+7. Connect Supabase Postgres
+8. Implement login + protected layout
+9. Migrate dashboard page
