@@ -36,13 +36,27 @@ OLD_ADMIN_USER=admin OLD_ADMIN_PASSWORD=... npm run legacy:export
 npm run legacy:assets
 ```
 
+ทดสอบและ import snapshot เข้า Supabase/Postgres:
+
+```bash
+npm run legacy:import:dry-run
+npm run legacy:import
+npm run legacy:reconcile
+```
+
 ผลลัพธ์ถูกเก็บใน `legacy-exports/` และ `uploads/legacy-assets/` ซึ่งถูก `.gitignore` เพราะเป็นข้อมูลจริง/ไฟล์จริงจากระบบเก่า
 
 สถานะล่าสุด:
 
-- Supabase schema ถูก apply ไปยัง project `qvbqoxfuqzzffryqkuva` แล้ว
+- Supabase schema และ legacy snapshot ถูก import ไปยัง project `qvbqoxfuqzzffryqkuva` แล้ว
+- Supabase URL: `https://qvbqoxfuqzzffryqkuva.supabase.co`
 - Legacy snapshot ล่าสุดมี config 1, locations 12, drugs 16, active stock items 26, transactions 54, users 2
+- Reconcile ล่าสุดผ่าน: active locations 12, active drugs 16, active items 26, total qty 26, transactions 54, near-expiry 4
+- สร้าง placeholder สำหรับประวัติที่อ้างข้อมูลเก่าที่ไม่อยู่ใน active snapshot: inactive drugs 8, closed items 10, transaction FK null 0
+- Legacy users ถูก skip เป็นค่า default เพราะไม่ย้ายรหัสผ่านเก่า/plaintext; ใช้ admin seed แล้วค่อย reset/migrate auth ภายหลัง
 - Legacy asset ล่าสุดพบโลโก้ 1 ไฟล์ และยังไม่พบรูปยาใน snapshot
+- Backend ใหม่ผ่าน read-only smoke test กับ API contract เดิมแล้ว: login, locations, drugs, dashboard, stock, search, history
+- Write workflows ยังต้อง smoke test แบบ rollback/test database ก่อน claim ว่าทำงานเหมือนระบบเดิมครบ: receive, exchange, dispose, adjust
 
 ---
 

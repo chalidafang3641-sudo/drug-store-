@@ -104,9 +104,11 @@ Project ref: `qvbqoxfuqzzffryqkuva`
 - [x] Verify tables หลักแล้ว: `app_config`, `locations`, `drugs`, `items`, `transactions`, `app_users`, `sessions`, `errors`, `roles`, `profiles`, `legacy_id_map`, `audit_logs`
 - [x] Seed role baseline แล้ว: `admin`, `pharmacist`, `staff`
 - [x] เปิด RLS ทุกตาราง public แล้ว
+- [x] Import legacy snapshot เข้า Supabase แล้ว
+- [x] Reconcile legacy import ผ่าน: active locations 12, active drugs 16, active items 26, total qty 26, transactions 54, near-expiry 4
+- [x] เพิ่ม placeholder สำหรับประวัติที่อ้างข้อมูลเก่าที่ไม่อยู่ใน active snapshot: inactive drugs 8, closed items 10, transaction FK null 0
 - [ ] เพิ่ม RLS policies ตาม role หรือเลือก server-only access ด้วย service role
 - [ ] สร้าง Supabase Storage buckets สำหรับ `branding` และ `drug-images`
-- [ ] Import legacy snapshot เข้า Supabase
 
 ## Phase 0: Foundation
 
@@ -266,8 +268,8 @@ Indexing baseline ที่ใส่แล้ว:
 - [x] ดึง legacy snapshot จาก API เดิมมาเก็บใน `legacy-exports/`
 - [x] ทำ script ดึงรูป/โลโก้จาก legacy snapshot มาเก็บใน `uploads/legacy-assets/`
 - [x] ดาวน์โหลด legacy logo ลง local asset folder แล้ว
-- [ ] ทำ import script จาก `legacy-exports/legacy-snapshot-latest.json` เข้า Postgres/Supabase
-- [ ] ดึงและ upsert ข้อมูล:
+- [x] ทำ import script จาก `legacy-exports/legacy-snapshot-latest.json` เข้า Postgres/Supabase
+- [x] ดึงและ upsert ข้อมูล:
 
 ```text
 config
@@ -275,23 +277,70 @@ locations
 drugs
 items
 transactions
-users
 ```
 
-- [ ] เก็บ source id เดิมเท่าที่ API ส่งมา
-- [ ] ทำ dry run mode สำหรับ import
-- [ ] ทำ idempotent upsert เพื่อให้ import ซ้ำแล้วข้อมูลไม่ซ้ำ
-- [ ] ตัดสินใจเรื่อง users: ไม่ย้าย plaintext password, ให้สร้าง/reset password ใหม่หรือใช้ Supabase Auth
+- [x] เก็บ source id เดิมเท่าที่ API ส่งมาใน `code_id` และ `legacy_id_map`
+- [x] ทำ dry run mode สำหรับ import
+- [x] ทำ idempotent upsert เพื่อให้ import ซ้ำแล้วข้อมูลไม่ซ้ำ
+- [x] ตัดสินใจเรื่อง users: ไม่ย้าย plaintext password, ใช้ admin seed และให้สร้าง/reset password ใหม่หรือใช้ Supabase Auth ภายหลัง
+- [x] ทำ transaction placeholders สำหรับประวัติเก่าที่อ้าง drug/item ที่ไม่มีใน active snapshot
 - [x] ตัดสินใจเรื่องรูปยา/โลโก้: download จาก Google Drive มาเก็บ local ignored ก่อน
 - [ ] Upload legacy assets เข้า Supabase Storage หลังสร้าง buckets และมี service role key
 - [ ] Update `app_config.logo_file_id` / `logo_url` หรือ storage path หลัง upload เข้า Supabase Storage
-- [ ] ทำ reconciliation หลัง import:
+- [x] ทำ reconciliation หลัง import:
   - จำนวน locations
   - จำนวน active drugs
   - จำนวน active stock items
   - stock quantity รวม
   - transaction count
   - near-expiry count
+  - placeholder counts
+  - transaction FK null checks
+
+Import/reconcile commands:
+
+```bash
+npm run legacy:import:dry-run
+npm run legacy:import
+npm run legacy:reconcile
+```
+
+ผลล่าสุดบน Supabase project `qvbqoxfuqzzffryqkuva`:
+
+| Check | Expected | Actual |
+| --- | ---: | ---: |
+| active locations | 12 | 12 |
+| active drugs | 16 | 16 |
+| active items | 26 | 26 |
+| total qty | 26 | 26 |
+| transactions | 54 | 54 |
+| dashboard near-expiry | 4 | 4 |
+| placeholder drugs | 8 | 8 |
+| placeholder items | 10 | 10 |
+| transaction null drug refs | 0 | 0 |
+| transaction null item refs | 0 | 0 |
+
+## Phase 6.5: Legacy UI/API Smoke Test
+
+- [x] รัน Node/Express API เดิมกับ Supabase Postgres remote
+- [x] Smoke test `branding`
+- [x] Smoke test `login` ด้วย admin seed
+- [x] Smoke test `me`
+- [x] Smoke test `getLocations`
+- [x] Smoke test `getDrugs`
+- [x] Smoke test `getDashboard`
+- [x] Smoke test `getLocationStock`
+- [x] Smoke test `getLocationItems`
+- [x] Smoke test `searchItems`
+- [x] Smoke test `recentReceives`
+- [x] Smoke test `recentExchanges`
+- [x] Smoke test `getLowStock`
+- [ ] Smoke test write workflows ใน database/test transaction ที่ rollback ได้:
+  - `receiveItem`
+  - `exchangeItem`
+  - `disposeItem`
+  - `adjustItem`
+- [ ] Smoke test frontend เดิมใน browser โดย point `window.TW_API_URL` ไป backend ใหม่
 
 ## Phase 7: QA
 
@@ -318,14 +367,14 @@ users
 
 ## Recommended Next Tasks
 
-1. ทำ import script จาก legacy snapshot เข้า Supabase โดยใช้ `legacy_id_map` ให้ import ซ้ำได้
-2. Import `config`, `locations`, `drugs`, `items`, `transactions`, `users` พร้อม dry-run mode
-3. สร้าง reconciliation report เทียบ snapshot กับ Supabase: จำนวน record, stock qty รวม, transaction count, near-expiry count
-4. สร้าง Supabase Storage buckets `branding` และ `drug-images`
-5. Upload legacy assets จาก `uploads/legacy-assets/manifest.json` เข้า Supabase Storage และ update path ใน database
-6. ตัดสินใจ RLS/Auth strategy ระยะสั้น: server-only service role + `app_users` หรือเริ่มผูก Supabase Auth
-7. Scaffold SvelteKit structure in a reviewable branch
-8. Add `/api` compatibility endpoint
+1. สร้าง Supabase Storage buckets `branding` และ `drug-images`
+2. Upload legacy assets จาก `uploads/legacy-assets/manifest.json` เข้า Supabase Storage และ update path ใน database
+3. ทำ write-workflow smoke test แบบ rollback ได้สำหรับ `receiveItem`, `exchangeItem`, `disposeItem`, `adjustItem`
+4. Smoke test frontend เดิมใน browser โดย point `window.TW_API_URL` ไป backend ใหม่
+5. ตัดสินใจ RLS/Auth strategy ระยะสั้น: server-only service role + `app_users` หรือเริ่มผูก Supabase Auth
+6. Scaffold SvelteKit structure/scripts ให้รันจริงได้
+7. เปลี่ยน SvelteKit placeholder จาก `countries` เป็น domain table เช่น `locations`
+8. Add `/api` compatibility endpoint ใน SvelteKit
 9. Move current Node/Postgres API into SvelteKit server modules
 10. Implement login + protected layout
 11. Migrate dashboard page

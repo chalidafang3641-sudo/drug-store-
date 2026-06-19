@@ -7,6 +7,9 @@
     "db:setup": "psql \"$DATABASE_URL\" -f db/schema.sql",
     "legacy:export": "node scripts/export-old-api.mjs",
     "legacy:assets": "node scripts/download-legacy-assets.mjs",
+    "legacy:import": "node scripts/import-legacy-snapshot.mjs",
+    "legacy:import:dry-run": "node scripts/import-legacy-snapshot.mjs --dry-run",
+    "legacy:reconcile": "node scripts/reconcile-legacy-import.mjs",
     "start": "node server/index.js",
     "dev": "node --watch server/index.js",
     "check": "node --check server/index.js"

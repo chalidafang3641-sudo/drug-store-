@@ -728,11 +728,20 @@ Constraints:
   - active_items
   - transactions
   - users
-- ต้อง validate จำนวน record หลัง import เทียบกับ snapshot
+- Data migration tooling ต้องรองรับ:
+  - dry-run import ที่ใช้ path เดียวกับ import จริงและ rollback transaction
+  - committed import แบบ transaction เดียว
+  - idempotent upsert ผ่าน `legacy_id_map`
+  - reconciliation report หลัง import
+  - placeholder สำหรับประวัติ transaction ที่อ้าง legacy drug/item ที่ไม่อยู่ใน active snapshot
+- Legacy users ต้องไม่ถูก import พร้อมรหัสผ่านเก่า; ค่า default ต้อง skip user migration และใช้การ reset password หรือ Supabase Auth migration ภายหลัง
+- ต้อง validate จำนวน record หลัง import เทียบกับ snapshot รวมถึง active stock qty, transaction count, near-expiry count, legacy map count, placeholder count และ transaction FK null checks
 
 ## 26. ช่องว่าง/ข้อสังเกตจากโค้ดปัจจุบัน
 
 - `docs/design.md` ที่ copy มาจาก ns-erp ยังมีบริบทของระบบอื่น ต้องปรับให้ตรงกับ Drug Store ภายหลัง
+- SvelteKit scaffold ปัจจุบันยังเป็น placeholder ที่ query `countries`; ยังไม่ใช่ UI จริงของ Drug Store
+- Legacy UI/API read-only smoke test ผ่านกับ Supabase Postgres แล้ว แต่ write workflows (`receiveItem`, `exchangeItem`, `disposeItem`, `adjustItem`) ยังต้องทดสอบแบบ rollback/test database ก่อน claim ว่าเหมือนเดิมครบ
 - backend PostgreSQL local ยังไม่ส่ง Telegram/LINE จริง
 - UI filter ประวัติยังไม่มีปุ่ม `adjust` แยก แม้ backend รองรับแล้ว
 - สิทธิ์ `disposeItem` ใช้ permission `receive`; อาจต้องพิจารณาแยกเป็น `stock` หรือ `dispose`
