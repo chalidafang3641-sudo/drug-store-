@@ -502,6 +502,14 @@ Session หมดอายุ:
 
 ## 22. Data Model
 
+หลักการ id:
+
+- `id` เป็น internal primary key แบบ `BIGINT GENERATED ALWAYS AS IDENTITY`
+- foreign key ทุกตารางอ้างอิงกันด้วย `id` bigint เพื่อให้ join/index เร็วและ schema ชัด
+- `code_id` เป็น public/reference id ที่ API และ frontend ใช้เรียกข้อมูล
+- API response field `id` ต้องส่งค่า `code_id` ออกไป ไม่ส่ง internal bigint
+- ตอน import legacy data สามารถใช้ `code_id` เก็บ id เดิม/รหัสอ้างอิงจากระบบเก่า หรือให้ระบบ generate ค่าใหม่ด้วย prefix ต่อ table
+
 ### `app_config`
 
 เก็บค่า config กลางของระบบ มีเพียง 1 row (`id = true`)
@@ -530,6 +538,8 @@ Fields สำคัญ:
 
 Constraints:
 
+- `id` เป็น bigint internal primary key
+- `code_id` เป็น unique public id สำหรับ API
 - `name` ห้ามว่าง
 - `active` ใช้ soft delete
 - `default_receive_location_id` ใน config อ้างถึง `locations.id`
@@ -540,6 +550,8 @@ Constraints:
 
 Constraints:
 
+- `id` เป็น bigint internal primary key
+- `code_id` เป็น unique public id สำหรับ API
 - `name` ห้ามว่าง
 - `code` unique เฉพาะยา active และ code ไม่ว่าง
 - `min_qty >= 0`
@@ -551,6 +563,8 @@ Constraints:
 
 Fields สำคัญ:
 
+- `id` เป็น bigint internal primary key
+- `code_id` เป็น unique public id สำหรับ API
 - `drug_id`
 - `location_id`
 - `lot_no`
@@ -573,6 +587,8 @@ Constraints:
 
 Fields สำคัญ:
 
+- `id` เป็น bigint internal primary key
+- `code_id` เป็น unique public id สำหรับ API
 - `type`: `receive`, `exchange`, `dispose`, `adjust`
 - `item_id`
 - `drug_id`
@@ -592,6 +608,8 @@ Fields สำคัญ:
 
 Constraints:
 
+- `id` เป็น bigint internal primary key
+- `code_id` เป็น unique public id สำหรับ API
 - `username` unique
 - `role` อยู่ใน `admin`, `pharmacist`, `staff`
 - `permissions` เป็น text array
@@ -601,7 +619,8 @@ Constraints:
 
 เก็บ session token
 
-- `id` เป็น token
+- `id` เป็น bigint internal primary key
+- `code_id` เป็น session token ที่ API ส่งให้ frontend
 - `expires_at` ใช้ตรวจหมดอายุ
 - local backend ตั้งอายุ session 8 ชั่วโมง
 

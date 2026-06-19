@@ -164,6 +164,8 @@ drug-images
 
 Indexing baseline ที่ใส่แล้ว:
 
+- internal primary key ใช้ `BIGINT GENERATED ALWAYS AS IDENTITY`
+- public/API id ใช้ `code_id` แยกจาก internal id ทุก entity หลัก
 - `pg_trgm` สำหรับค้นหาชื่อยา ชื่อสถานที่ และ Lot ด้วย `LIKE '%...%'`
 - partial indexes บน `items` สำหรับ stock active ที่ `status = 'active' AND qty > 0`
 - covering indexes สำหรับ dashboard, stock-by-location, low-stock และ export

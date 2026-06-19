@@ -1,6 +1,11 @@
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
+CREATE OR REPLACE FUNCTION make_code_id(prefix TEXT)
+RETURNS TEXT AS $$
+  SELECT prefix || '_' || replace(gen_random_uuid()::text, '-', '');
+$$ LANGUAGE sql VOLATILE;
+
 CREATE TABLE IF NOT EXISTS app_config (
   id BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (id),
   hospital_name TEXT NOT NULL DEFAULT 'โรงพยาบาลร้องกวาง',
@@ -9,7 +14,7 @@ CREATE TABLE IF NOT EXISTS app_config (
   expiry_critical_days INTEGER NOT NULL DEFAULT 35 CHECK (expiry_critical_days > 0),
   expiry_high_days INTEGER NOT NULL DEFAULT 60 CHECK (expiry_high_days > expiry_critical_days),
   expiry_medium_days INTEGER NOT NULL DEFAULT 120 CHECK (expiry_medium_days > expiry_high_days),
-  default_receive_location_id UUID,
+  default_receive_location_id BIGINT,
   notification_enabled BOOLEAN NOT NULL DEFAULT FALSE,
   notification_channel TEXT NOT NULL DEFAULT 'telegram' CHECK (notification_channel IN ('telegram', 'line')),
   telegram_bot_token TEXT NOT NULL DEFAULT '',
@@ -23,7 +28,8 @@ CREATE TABLE IF NOT EXISTS app_config (
 );
 
 CREATE TABLE IF NOT EXISTS locations (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  code_id TEXT NOT NULL UNIQUE DEFAULT make_code_id('loc'),
   name TEXT NOT NULL CHECK (length(trim(name)) > 0),
   icon TEXT NOT NULL DEFAULT 'box',
   color TEXT NOT NULL DEFAULT '#16A34A',
@@ -61,12 +67,13 @@ ALTER TABLE app_config
   FOREIGN KEY (default_receive_location_id) REFERENCES locations(id) ON DELETE SET NULL;
 
 CREATE TABLE IF NOT EXISTS drugs (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  code_id TEXT NOT NULL UNIQUE DEFAULT make_code_id('drug'),
   name TEXT NOT NULL CHECK (length(trim(name)) > 0),
   code TEXT NOT NULL DEFAULT '',
   unit TEXT NOT NULL DEFAULT '',
   require_lot BOOLEAN NOT NULL DEFAULT FALSE,
-  default_location_id UUID REFERENCES locations(id) ON DELETE SET NULL,
+  default_location_id BIGINT REFERENCES locations(id) ON DELETE SET NULL,
   image_file_id TEXT NOT NULL DEFAULT '',
   min_qty INTEGER NOT NULL DEFAULT 0 CHECK (min_qty >= 0),
   active BOOLEAN NOT NULL DEFAULT TRUE,
@@ -95,9 +102,10 @@ CREATE INDEX IF NOT EXISTS drugs_low_stock_idx
   WHERE active AND min_qty > 0;
 
 CREATE TABLE IF NOT EXISTS items (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  drug_id UUID NOT NULL REFERENCES drugs(id) ON DELETE RESTRICT,
-  location_id UUID NOT NULL REFERENCES locations(id) ON DELETE RESTRICT,
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  code_id TEXT NOT NULL UNIQUE DEFAULT make_code_id('item'),
+  drug_id BIGINT NOT NULL REFERENCES drugs(id) ON DELETE RESTRICT,
+  location_id BIGINT NOT NULL REFERENCES locations(id) ON DELETE RESTRICT,
   lot_no TEXT NOT NULL DEFAULT '',
   expiry_date DATE NOT NULL,
   qty INTEGER NOT NULL DEFAULT 0 CHECK (qty >= 0),
@@ -137,12 +145,13 @@ CREATE INDEX IF NOT EXISTS items_lot_trgm_idx
   WHERE status = 'active' AND qty > 0 AND lot_no <> '';
 
 CREATE TABLE IF NOT EXISTS transactions (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  code_id TEXT NOT NULL UNIQUE DEFAULT make_code_id('tx'),
   type TEXT NOT NULL CHECK (type IN ('receive', 'exchange', 'dispose', 'adjust')),
-  item_id UUID REFERENCES items(id) ON DELETE SET NULL,
-  drug_id UUID REFERENCES drugs(id) ON DELETE SET NULL,
-  from_location_id UUID REFERENCES locations(id) ON DELETE SET NULL,
-  to_location_id UUID REFERENCES locations(id) ON DELETE SET NULL,
+  item_id BIGINT REFERENCES items(id) ON DELETE SET NULL,
+  drug_id BIGINT REFERENCES drugs(id) ON DELETE SET NULL,
+  from_location_id BIGINT REFERENCES locations(id) ON DELETE SET NULL,
+  to_location_id BIGINT REFERENCES locations(id) ON DELETE SET NULL,
   qty INTEGER NOT NULL CHECK (qty >= 0),
   lot_no TEXT NOT NULL DEFAULT '',
   expiry_date DATE,
@@ -163,7 +172,8 @@ CREATE INDEX IF NOT EXISTS transactions_export_idx
   INCLUDE (drug_id, from_location_id, to_location_id, qty, lot_no, expiry_date, reason, by_username);
 
 CREATE TABLE IF NOT EXISTS app_users (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  code_id TEXT NOT NULL UNIQUE DEFAULT make_code_id('usr'),
   username TEXT NOT NULL UNIQUE CHECK (length(trim(username)) > 0),
   password_hash TEXT NOT NULL,
   role TEXT NOT NULL CHECK (role IN ('admin', 'pharmacist', 'staff')),
@@ -182,8 +192,9 @@ CREATE INDEX IF NOT EXISTS app_users_active_role_idx
   ON app_users (active, role);
 
 CREATE TABLE IF NOT EXISTS sessions (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  code_id TEXT NOT NULL UNIQUE DEFAULT make_code_id('sess'),
+  user_id BIGINT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   expires_at TIMESTAMPTZ NOT NULL
 );
@@ -192,7 +203,8 @@ CREATE INDEX IF NOT EXISTS sessions_expires_at_idx ON sessions (expires_at);
 CREATE INDEX IF NOT EXISTS sessions_user_id_idx ON sessions (user_id);
 
 CREATE TABLE IF NOT EXISTS errors (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  code_id TEXT NOT NULL UNIQUE DEFAULT make_code_id('err'),
   where_name TEXT NOT NULL,
   message TEXT NOT NULL,
   stack TEXT NOT NULL DEFAULT '',

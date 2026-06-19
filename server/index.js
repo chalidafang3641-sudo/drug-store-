@@ -121,7 +121,7 @@ function publicUser(user) {
 async function apiLogin(username, password) {
   if (!username || !password) return { status: 'error', message: 'กรุณากรอกชื่อผู้ใช้และรหัสผ่าน' };
   const { rows } = await pool.query(
-    `SELECT id, username, role, name, permissions, active
+    `SELECT id, code_id, username, role, name, permissions, active
      FROM app_users
      WHERE username = $1 AND password_hash = crypt($2, password_hash)`,
     [String(username).trim(), String(password)]
@@ -130,32 +130,37 @@ async function apiLogin(username, password) {
   if (!user || !user.active) return { status: 'error', message: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' };
   const expiresAt = new Date(Date.now() + SESSION_HOURS * 60 * 60 * 1000);
   const session = await pool.query(
-    'INSERT INTO sessions (user_id, expires_at) VALUES ($1, $2) RETURNING id',
+    'INSERT INTO sessions (user_id, expires_at) VALUES ($1, $2) RETURNING code_id',
     [user.id, expiresAt]
   );
   await pool.query('UPDATE app_users SET last_login = now() WHERE id = $1', [user.id]);
-  return { status: 'success', token: session.rows[0].id, user: publicUser(user) };
+  return { status: 'success', token: session.rows[0].code_id, user: publicUser(user) };
 }
 
 async function apiLogout(token) {
-  if (token) await pool.query('DELETE FROM sessions WHERE id = $1', [token]).catch(() => {});
+  if (token) await pool.query('DELETE FROM sessions WHERE code_id = $1', [token]).catch(() => {});
   return { status: 'success', message: 'ออกจากระบบแล้ว' };
 }
 
 async function getSessionUser(token) {
   if (!token) return null;
   const { rows } = await pool.query(
-    `SELECT u.id, u.username, u.role, u.name, u.permissions, u.active
+    `SELECT u.id, u.code_id, u.username, u.role, u.name, u.permissions, u.active
      FROM sessions s
      JOIN app_users u ON u.id = s.user_id
-     WHERE s.id = $1 AND s.expires_at > now()`,
+     WHERE s.code_id = $1 AND s.expires_at > now()`,
     [token]
   );
   return rows[0] && rows[0].active ? rows[0] : null;
 }
 
 async function readConfig() {
-  const { rows } = await pool.query('SELECT * FROM app_config WHERE id = TRUE');
+  const { rows } = await pool.query(
+    `SELECT c.*, l.code_id AS default_receive_location_code_id
+     FROM app_config c
+     LEFT JOIN locations l ON l.id = c.default_receive_location_id
+     WHERE c.id = TRUE`
+  );
   return rows[0];
 }
 
@@ -170,7 +175,7 @@ function configOut(c, includeSecrets = true) {
       high: c.expiry_high_days,
       medium: c.expiry_medium_days
     },
-    default_receive_location_id: c.default_receive_location_id || '',
+    default_receive_location_id: c.default_receive_location_code_id || '',
     notification: {
       enabled: c.notification_enabled,
       channel: c.notification_channel,
@@ -218,9 +223,12 @@ async function apiGetConfig() {
 
 async function apiSaveConfig(patch = {}) {
   const c = await readConfig();
+  const defaultReceiveLocationId = patch.default_receive_location_id !== undefined
+    ? await resolveCodeId('locations', patch.default_receive_location_id)
+    : c.default_receive_location_id;
   const next = {
     hospital_name: patch.hospital_name !== undefined ? String(patch.hospital_name).trim() : c.hospital_name,
-    default_receive_location_id: patch.default_receive_location_id !== undefined ? (patch.default_receive_location_id || null) : c.default_receive_location_id,
+    default_receive_location_id: defaultReceiveLocationId,
     display_be: patch.display_be !== undefined ? !!patch.display_be : c.display_be,
     critical: patch.expiry_thresholds ? Number(patch.expiry_thresholds.critical) : c.expiry_critical_days,
     high: patch.expiry_thresholds ? Number(patch.expiry_thresholds.high) : c.expiry_high_days,
@@ -252,7 +260,7 @@ async function apiRemoveLogo() {
 
 async function apiGetLocations() {
   const { rows } = await pool.query(
-    `SELECT id, name, icon, color, is_default_receive, sort_order, active, created_at, updated_at
+    `SELECT id, code_id, name, icon, color, is_default_receive, sort_order, active, created_at, updated_at
      FROM locations WHERE active ORDER BY sort_order, created_at`
   );
   return { status: 'success', data: rows.map(mapLocation) };
@@ -264,7 +272,7 @@ async function apiSaveLocation(loc = {}) {
   if (loc.id) {
     const { rows } = await pool.query(
       `UPDATE locations SET name = $2, icon = COALESCE($3, icon), color = COALESCE($4, color)
-       WHERE id = $1 AND active RETURNING *`,
+       WHERE code_id = $1 AND active RETURNING *`,
       [loc.id, name, loc.icon ?? null, loc.color ?? null]
     );
     if (!rows[0]) return { status: 'error', message: 'ไม่พบสถานที่' };
@@ -280,9 +288,11 @@ async function apiSaveLocation(loc = {}) {
 }
 
 async function apiDeleteLocation(id) {
-  const { rowCount } = await pool.query('UPDATE locations SET active = FALSE WHERE id = $1', [id]);
+  const current = await pool.query('SELECT id FROM locations WHERE code_id = $1 AND active', [id]);
+  if (!current.rows[0]) return { status: 'error', message: 'ไม่พบสถานที่' };
+  const { rowCount } = await pool.query('UPDATE locations SET active = FALSE WHERE id = $1', [current.rows[0].id]);
   if (!rowCount) return { status: 'error', message: 'ไม่พบสถานที่' };
-  await pool.query('UPDATE app_config SET default_receive_location_id = NULL WHERE default_receive_location_id = $1', [id]);
+  await pool.query('UPDATE app_config SET default_receive_location_id = NULL WHERE default_receive_location_id = $1', [current.rows[0].id]);
   return { status: 'success', message: 'ลบสถานที่แล้ว' };
 }
 
@@ -292,7 +302,7 @@ async function apiReorderLocations(ids = []) {
   try {
     await client.query('BEGIN');
     for (let i = 0; i < ids.length; i += 1) {
-      await client.query('UPDATE locations SET sort_order = $2 WHERE id = $1', [ids[i], i + 1]);
+      await client.query('UPDATE locations SET sort_order = $2 WHERE code_id = $1', [ids[i], i + 1]);
     }
     await client.query('COMMIT');
     return { status: 'success', message: 'จัดลำดับแล้ว' };
@@ -310,14 +320,17 @@ async function apiSetDefaultReceive(id) {
     await client.query('BEGIN');
     await client.query('UPDATE locations SET is_default_receive = FALSE WHERE active AND is_default_receive');
     const { rowCount } = await client.query(
-      'UPDATE locations SET is_default_receive = TRUE WHERE id = $1 AND active',
+      'UPDATE locations SET is_default_receive = TRUE WHERE code_id = $1 AND active',
       [id]
     );
     if (!rowCount) {
       await client.query('ROLLBACK');
       return { status: 'error', message: 'ไม่พบสถานที่' };
     }
-    await client.query('UPDATE app_config SET default_receive_location_id = $1 WHERE id = TRUE', [id]);
+    await client.query(
+      'UPDATE app_config SET default_receive_location_id = (SELECT locations.id FROM locations WHERE locations.code_id = $1) WHERE id = TRUE',
+      [id]
+    );
     await client.query('COMMIT');
     return { status: 'success', message: 'ตั้งจุดเริ่มต้นรับเข้าแล้ว' };
   } catch (err) {
@@ -330,8 +343,12 @@ async function apiSetDefaultReceive(id) {
 
 async function apiGetDrugs() {
   const { rows } = await pool.query(
-    `SELECT id, name, code, unit, require_lot, default_location_id, image_file_id, min_qty, active, created_at, updated_at
-     FROM drugs WHERE active ORDER BY name`
+    `SELECT d.id, d.code_id, d.name, d.code, d.unit, d.require_lot, d.default_location_id,
+            dl.code_id AS default_location_code_id, d.image_file_id, d.min_qty, d.active, d.created_at, d.updated_at
+     FROM drugs d
+     LEFT JOIN locations dl ON dl.id = d.default_location_id
+     WHERE d.active
+     ORDER BY d.name`
   );
   return { status: 'success', data: rows.map(mapDrug) };
 }
@@ -347,21 +364,21 @@ async function apiSaveDrug(d = {}) {
   const code = String(d.code || '').trim();
   if (code) {
     const duplicate = await pool.query(
-      'SELECT name FROM drugs WHERE active AND code = $1 AND ($2::uuid IS NULL OR id <> $2::uuid)',
+      'SELECT name FROM drugs WHERE active AND code = $1 AND ($2::text IS NULL OR code_id <> $2)',
       [code, d.id || null]
     );
     if (duplicate.rows[0]) return { status: 'error', message: `บาร์โค้ดนี้มีอยู่แล้ว: ${duplicate.rows[0].name}` };
   }
-  const defaultLocation = d.default_location_id || null;
+  const defaultLocation = await resolveCodeId('locations', d.default_location_id);
   if (d.id) {
-    const current = await pool.query('SELECT * FROM drugs WHERE id = $1 AND active', [d.id]);
+    const current = await pool.query('SELECT * FROM drugs WHERE code_id = $1 AND active', [d.id]);
     if (!current.rows[0]) return { status: 'error', message: 'ไม่พบรายการยา' };
     const imageFileId = d.clear_image ? '' : (d.image_file_id || current.rows[0].image_file_id || '');
     const { rows } = await pool.query(
       `UPDATE drugs
        SET name = $2, code = $3, unit = $4, require_lot = $5, default_location_id = $6,
            image_file_id = $7, min_qty = $8
-       WHERE id = $1 RETURNING *`,
+       WHERE code_id = $1 RETURNING *`,
       [d.id, name, code, String(d.unit || '').trim(), !!d.require_lot, defaultLocation, imageFileId, Number(d.min_qty) || 0]
     );
     return { status: 'success', message: 'บันทึกแล้ว', drug: mapDrug(rows[0]) };
@@ -375,19 +392,26 @@ async function apiSaveDrug(d = {}) {
 }
 
 async function apiDeleteDrug(id) {
-  const { rowCount } = await pool.query('UPDATE drugs SET active = FALSE WHERE id = $1', [id]);
+  const { rowCount } = await pool.query('UPDATE drugs SET active = FALSE WHERE code_id = $1', [id]);
   if (!rowCount) return { status: 'error', message: 'ไม่พบรายการยา' };
   return { status: 'success', message: 'ลบรายการยาแล้ว' };
 }
 
 async function apiSetRequireLot(id, value) {
-  const { rowCount } = await pool.query('UPDATE drugs SET require_lot = $2 WHERE id = $1', [id, !!value]);
+  const { rowCount } = await pool.query('UPDATE drugs SET require_lot = $2 WHERE code_id = $1', [id, !!value]);
   if (!rowCount) return { status: 'error', message: 'ไม่พบรายการยา' };
   return { status: 'success', message: 'อัปเดตแล้ว' };
 }
 
 async function apiFindDrugByCode(code) {
-  const { rows } = await pool.query('SELECT * FROM drugs WHERE active AND code = $1 LIMIT 1', [String(code || '').trim()]);
+  const { rows } = await pool.query(
+    `SELECT d.*, dl.code_id AS default_location_code_id
+     FROM drugs d
+     LEFT JOIN locations dl ON dl.id = d.default_location_id
+     WHERE d.active AND d.code = $1
+     LIMIT 1`,
+    [String(code || '').trim()]
+  );
   return { status: 'success', drug: rows[0] ? mapDrug(rows[0]) : null };
 }
 
@@ -395,9 +419,9 @@ async function apiReceiveItem(p, user) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    const drug = (await client.query('SELECT * FROM drugs WHERE id = $1 AND active FOR SHARE', [p.drug_id])).rows[0];
+    const drug = (await client.query('SELECT * FROM drugs WHERE code_id = $1 AND active FOR SHARE', [p.drug_id])).rows[0];
     if (!drug) return { status: 'error', message: 'ไม่พบรายการยา' };
-    const loc = (await client.query('SELECT * FROM locations WHERE id = $1 AND active FOR SHARE', [p.location_id])).rows[0];
+    const loc = (await client.query('SELECT * FROM locations WHERE code_id = $1 AND active FOR SHARE', [p.location_id])).rows[0];
     if (!loc) return { status: 'error', message: 'ไม่พบสถานที่เก็บ' };
     const qty = Number(p.qty);
     if (!qty || qty <= 0) return { status: 'error', message: 'จำนวนต้องมากกว่า 0' };
@@ -491,7 +515,7 @@ async function apiSearchItems(query) {
 
 async function apiGetLocationStock() {
   const locs = await pool.query(
-    `SELECT l.id, l.name, l.icon, l.color,
+    `SELECT l.id, l.code_id, l.name, l.icon, l.color,
             COUNT(i.id)::int AS count,
             COALESCE(SUM(i.qty), 0)::int AS qty
      FROM locations l
@@ -501,7 +525,7 @@ async function apiGetLocationStock() {
      ORDER BY l.sort_order, l.created_at`
   );
   const all = await pool.query("SELECT COUNT(*)::int AS count, COALESCE(SUM(qty), 0)::int AS qty FROM items WHERE status = 'active' AND qty > 0");
-  return { status: 'success', all: all.rows[0], locations: locs.rows.map((x) => ({ ...x, id: String(x.id) })) };
+  return { status: 'success', all: all.rows[0], locations: locs.rows.map((x) => ({ ...x, id: x.code_id })) };
 }
 
 async function apiGetLocationItems(locationId) {
@@ -509,7 +533,7 @@ async function apiGetLocationItems(locationId) {
   let where = "i.status = 'active' AND i.qty > 0";
   if (locationId && locationId !== 'all') {
     params.push(locationId);
-    where += ` AND i.location_id = $${params.length}`;
+    where += ` AND l.code_id = $${params.length}`;
   }
   const { rows } = await pool.query(itemSelectSql(where), params);
   return { status: 'success', data: rows.map(mapItem).sort((a, b) => a.days - b.days) };
@@ -527,7 +551,7 @@ async function apiAdjustItem(p, user) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    const item = (await client.query('SELECT * FROM items WHERE id = $1 AND status = $2 FOR UPDATE', [p.item_id, 'active'])).rows[0];
+    const item = (await client.query('SELECT * FROM items WHERE code_id = $1 AND status = $2 FOR UPDATE', [p.item_id, 'active'])).rows[0];
     if (!item) return { status: 'error', message: 'ไม่พบรายการยา' };
     const actual = Number(p.actual_qty);
     if (Number.isNaN(actual) || actual < 0) return { status: 'error', message: 'จำนวนไม่ถูกต้อง' };
@@ -555,7 +579,7 @@ async function moveStock(p, user, type) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    const item = (await client.query('SELECT * FROM items WHERE id = $1 AND status = $2 FOR UPDATE', [p.item_id, 'active'])).rows[0];
+    const item = (await client.query('SELECT * FROM items WHERE code_id = $1 AND status = $2 FOR UPDATE', [p.item_id, 'active'])).rows[0];
     if (!item) return { status: 'error', message: 'ไม่พบรายการยา หรือถูกย้ายไปแล้ว' };
     const qty = Number(p.qty);
     if (!qty || qty <= 0) return { status: 'error', message: 'จำนวนต้องมากกว่า 0' };
@@ -563,7 +587,7 @@ async function moveStock(p, user, type) {
     const named = await mapItemWithNames(item, client);
     let dest = null;
     if (type === 'exchange') {
-      dest = (await client.query('SELECT * FROM locations WHERE id = $1 AND active', [p.to_location_id])).rows[0];
+      dest = (await client.query('SELECT * FROM locations WHERE code_id = $1 AND active', [p.to_location_id])).rows[0];
       if (!dest) return { status: 'error', message: 'ไม่พบสถานที่ปลายทาง' };
       if (String(dest.id) === String(item.location_id)) return { status: 'error', message: 'ปลายทางต้องไม่ใช่สถานที่เดิม' };
     }
@@ -708,8 +732,8 @@ async function apiExportData(p) {
 }
 
 async function apiGetUsers() {
-  const { rows } = await pool.query('SELECT id, username, name, role, active, last_login FROM app_users ORDER BY created_at');
-  return { status: 'success', data: rows.map((u) => ({ ...u, id: String(u.id), last_login: toIso(u.last_login) || '' })) };
+  const { rows } = await pool.query('SELECT id, code_id, username, name, role, active, last_login FROM app_users ORDER BY created_at');
+  return { status: 'success', data: rows.map((u) => ({ ...u, id: u.code_id, last_login: toIso(u.last_login) || '' })) };
 }
 
 async function apiSaveUser(u = {}) {
@@ -718,13 +742,13 @@ async function apiSaveUser(u = {}) {
   const role = ROLES[u.role] ? u.role : 'staff';
   const name = String(u.name || '').trim() || ROLES[role].name;
   if (u.id) {
-    const duplicate = await pool.query('SELECT id FROM app_users WHERE username = $1 AND id <> $2', [username, u.id]);
+    const duplicate = await pool.query('SELECT id FROM app_users WHERE username = $1 AND code_id <> $2', [username, u.id]);
     if (duplicate.rows[0]) return { status: 'error', message: 'ชื่อผู้ใช้นี้มีอยู่แล้ว' };
     const passwordSql = u.password && String(u.password).length >= 4 ? ', password_hash = crypt($7, gen_salt(\'bf\'))' : '';
     const params = [u.id, username, name, role, ROLES[role].permissions, u.active !== undefined ? !!u.active : true];
     if (passwordSql) params.push(String(u.password));
     const { rowCount } = await pool.query(
-      `UPDATE app_users SET username = $2, name = $3, role = $4, permissions = $5, active = $6 ${passwordSql} WHERE id = $1`,
+      `UPDATE app_users SET username = $2, name = $3, role = $4, permissions = $5, active = $6 ${passwordSql} WHERE code_id = $1`,
       params
     );
     if (!rowCount) return { status: 'error', message: 'ไม่พบผู้ใช้' };
@@ -745,16 +769,16 @@ async function apiSaveUser(u = {}) {
 }
 
 async function apiDeleteUser(id, actor) {
-  const current = await pool.query('SELECT username FROM app_users WHERE id = $1', [id]);
+  const current = await pool.query('SELECT username FROM app_users WHERE code_id = $1', [id]);
   if (!current.rows[0]) return { status: 'error', message: 'ไม่พบผู้ใช้' };
   if (current.rows[0].username === actor.username) return { status: 'error', message: 'ลบบัญชีตัวเองไม่ได้' };
-  await pool.query('DELETE FROM app_users WHERE id = $1', [id]);
+  await pool.query('DELETE FROM app_users WHERE code_id = $1', [id]);
   return { status: 'success', message: 'ลบผู้ใช้แล้ว' };
 }
 
 async function apiGetLowStock() {
   const { rows } = await pool.query(
-    `SELECT d.id AS drug_id, d.name, d.unit, d.min_qty,
+    `SELECT d.id AS drug_id, d.code_id AS drug_code_id, d.name, d.unit, d.min_qty,
             COALESCE(SUM(i.qty) FILTER (WHERE i.status = 'active'), 0)::int AS total,
             d.image_file_id
      FROM drugs d
@@ -767,7 +791,7 @@ async function apiGetLowStock() {
   return {
     status: 'success',
     data: rows.map((d) => ({
-      drug_id: String(d.drug_id),
+      drug_id: d.drug_code_id,
       name: d.name,
       unit: d.unit || '',
       min_qty: Number(d.min_qty),
@@ -778,7 +802,8 @@ async function apiGetLowStock() {
 }
 
 function itemSelectSql(where) {
-  return `SELECT i.*, d.name AS drug_name, d.image_file_id, l.name AS location_name
+  return `SELECT i.*, d.code_id AS drug_code_id, d.name AS drug_name, d.image_file_id,
+                 l.code_id AS location_code_id, l.name AS location_name
           FROM items i
           JOIN drugs d ON d.id = i.drug_id
           JOIN locations l ON l.id = i.location_id
@@ -786,8 +811,11 @@ function itemSelectSql(where) {
 }
 
 function transactionSelectSql(where, limit, direction = 'DESC') {
-  return `SELECT t.*, d.name AS drug_name, fl.name AS from_location_name, tl.name AS to_location_name
+  return `SELECT t.*, i.code_id AS item_code_id, d.code_id AS drug_code_id, d.name AS drug_name,
+                 fl.code_id AS from_location_code_id, fl.name AS from_location_name,
+                 tl.code_id AS to_location_code_id, tl.name AS to_location_name
           FROM transactions t
+          LEFT JOIN items i ON i.id = t.item_id
           LEFT JOIN drugs d ON d.id = t.drug_id
           LEFT JOIN locations fl ON fl.id = t.from_location_id
           LEFT JOIN locations tl ON tl.id = t.to_location_id
@@ -798,7 +826,7 @@ function transactionSelectSql(where, limit, direction = 'DESC') {
 
 function mapLocation(l) {
   return {
-    id: String(l.id),
+    id: l.code_id,
     name: l.name,
     icon: l.icon,
     color: l.color,
@@ -812,12 +840,12 @@ function mapLocation(l) {
 
 function mapDrug(d) {
   return {
-    id: String(d.id),
+    id: d.code_id,
     name: d.name,
     code: d.code || '',
     unit: d.unit || '',
     require_lot: !!d.require_lot,
-    default_location_id: d.default_location_id ? String(d.default_location_id) : '',
+    default_location_id: d.default_location_code_id || '',
     image_file_id: d.image_file_id || '',
     image_url: d.image_file_id ? fileUrl(d.image_file_id) : '',
     min_qty: Number(d.min_qty || 0),
@@ -829,11 +857,11 @@ function mapDrug(d) {
 
 function mapItem(it) {
   return {
-    id: String(it.id),
-    drug_id: String(it.drug_id),
+    id: it.code_id,
+    drug_id: it.drug_code_id || '',
     drug_name: it.drug_name,
     image_url: it.image_file_id ? fileUrl(it.image_file_id) : '',
-    location_id: String(it.location_id),
+    location_id: it.location_code_id || '',
     location_name: it.location_name,
     lot_no: it.lot_no || '',
     expiry_date: dateOnly(it.expiry_date),
@@ -855,14 +883,14 @@ async function mapItemWithNames(it, client = pool) {
 
 function mapTransaction(t) {
   return {
-    id: String(t.id),
+    id: t.code_id,
     type: t.type,
-    item_id: t.item_id ? String(t.item_id) : '',
-    drug_id: t.drug_id ? String(t.drug_id) : '',
+    item_id: t.item_code_id || '',
+    drug_id: t.drug_code_id || '',
     drug_name: t.drug_name || '',
-    from_location_id: t.from_location_id ? String(t.from_location_id) : '',
+    from_location_id: t.from_location_code_id || '',
     from_location_name: t.from_location_name || '',
-    to_location_id: t.to_location_id ? String(t.to_location_id) : '',
+    to_location_id: t.to_location_code_id || '',
     to_location_name: t.to_location_name || '',
     qty: Number(t.qty || 0),
     lot_no: t.lot_no || '',
@@ -872,6 +900,14 @@ function mapTransaction(t) {
     by: t.by_username || '',
     created_at: toIso(t.created_at)
   };
+}
+
+async function resolveCodeId(table, codeId, client = pool) {
+  if (!codeId) return null;
+  const allowed = new Set(['locations', 'drugs', 'items', 'app_users']);
+  if (!allowed.has(table)) throw new Error(`Unsupported code_id table: ${table}`);
+  const { rows } = await client.query(`SELECT id FROM ${table} WHERE code_id = $1`, [codeId]);
+  return rows[0]?.id || null;
 }
 
 async function saveUpload(base64, filename = '', prefix = 'file') {
