@@ -12,6 +12,12 @@ Frontend: GitHub Pages (กล้องสแกนได้) · Backend: Google
 
 ---
 
+## Migration Plan
+
+แผนย้ายระบบไป SvelteKit + Vercel + Supabase อยู่ที่ [`docs/migration-plan.md`](docs/migration-plan.md)
+
+---
+
 ## ติดตั้ง
 
 ### A. Backend (Apps Script + Sheet)
