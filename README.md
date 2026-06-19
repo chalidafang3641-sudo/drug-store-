@@ -54,9 +54,11 @@ npm run legacy:reconcile
 - Reconcile ล่าสุดผ่าน: active locations 12, active drugs 16, active items 26, total qty 26, transactions 54, near-expiry 4
 - สร้าง placeholder สำหรับประวัติที่อ้างข้อมูลเก่าที่ไม่อยู่ใน active snapshot: inactive drugs 8, closed items 10, transaction FK null 0
 - Legacy users ถูก skip เป็นค่า default เพราะไม่ย้ายรหัสผ่านเก่า/plaintext; ใช้ admin seed แล้วค่อย reset/migrate auth ภายหลัง
-- Legacy asset ล่าสุดพบโลโก้ 1 ไฟล์ และยังไม่พบรูปยาใน snapshot
+- Legacy asset ล่าสุดพบโลโก้ 1 ไฟล์และ upload เข้า Supabase Storage bucket `branding` แล้ว; `app_config.logo_file_id` ถูก update เป็น public Storage URL
+- ยังไม่พบรูปยาใน legacy snapshot จึงยังไม่มีไฟล์ยาให้ upload เข้า bucket `drug-images`
 - Backend ใหม่ผ่าน read-only smoke test กับ API contract เดิมแล้ว: login, locations, drugs, dashboard, stock, search, history
-- Write workflows ยังต้อง smoke test แบบ rollback/test database ก่อน claim ว่าทำงานเหมือนระบบเดิมครบ: receive, exchange, dispose, adjust
+- Write workflows ผ่าน smoke test กับ Supabase แล้วและ cleanup test rows ด้วย captured ids: receive, exchange, adjust, dispose
+- Browser smoke test ของ UI เดิมผ่านแล้วเมื่อ point `window.TW_API_URL` ไป backend ใหม่: login, dashboard, locations, receive, exchange, settings และไม่มี console error
 
 ## Function Parity Status
 
@@ -65,11 +67,12 @@ npm run legacy:reconcile
 สถานะปัจจุบัน:
 
 - Read-only workflow หลักผ่านกับ Supabase แล้ว: login/session check, dashboard, locations, drugs, stock, search, recent receive/exchange, low stock
-- ข้อมูลเก่าถูก import และ reconcile แล้ว แต่รูป/โลโก้ยังอยู่ local asset folder รอ upload เข้า Supabase Storage
-- Write workflow ยังไม่ถือว่า verify ครบจนกว่าจะทดสอบแบบ rollback/test database: receive, exchange, dispose, adjust
+- ข้อมูลเก่าถูก import และ reconcile แล้ว; legacy logo ถูกย้ายเข้า Supabase Storage แล้ว
+- Write workflow หลักผ่าน smoke test แล้ว: receive, exchange, dispose, adjust
+- UI เดิมผ่าน browser smoke test กับ backend ใหม่แล้วสำหรับงานหลักที่ตรวจแบบเร็ว
 - SvelteKit files ที่มีอยู่ยังเป็น placeholder smoke test ไม่ใช่ UI จริงของระบบยา
 
-ดังนั้นคำตอบเชิงสถานะคือ backend ใหม่เริ่มรองรับ UI เดิมได้แล้วในงานอ่านข้อมูลหลัก แต่ยังต้องปิด QA งานเขียนข้อมูลก่อนจึงจะบอกได้ว่า function งานหลักเหมือนเดิมครบ
+ดังนั้นคำตอบเชิงสถานะคือ backend ใหม่รองรับ UI เดิมได้แล้วในงานหลักระดับ smoke test แต่ยังต้องทำ QA เชิงลึก, permission/edge cases, notification/export และย้าย UI จริงเข้า SvelteKit ก่อน production cutover
 
 ---
 

@@ -5,6 +5,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
+import { createClient } from '@supabase/supabase-js';
 
 const { Pool } = pg;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -14,6 +15,8 @@ const uploadDir = path.join(rootDir, 'uploads');
 const PORT = Number(process.env.PORT || 3000);
 const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || `http://localhost:${PORT}`).replace(/\/$/, '');
 const SESSION_HOURS = 8;
+const SUPABASE_URL = process.env.SUPABASE_URL || process.env.PUBLIC_SUPABASE_URL || '';
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
 const ROLES = {
   admin: { name: 'ผู้ดูแลระบบ', permissions: ['*'] },
@@ -24,6 +27,9 @@ const ROLES = {
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL || 'postgres://localhost:5432/the_watcher'
 });
+const supabaseAdmin = SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY
+  ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } })
+  : null;
 
 const app = express();
 app.use(cors());
@@ -420,15 +426,15 @@ async function apiReceiveItem(p, user) {
   try {
     await client.query('BEGIN');
     const drug = (await client.query('SELECT * FROM drugs WHERE code_id = $1 AND active FOR SHARE', [p.drug_id])).rows[0];
-    if (!drug) return { status: 'error', message: 'ไม่พบรายการยา' };
+    if (!drug) return rollbackResult(client, { status: 'error', message: 'ไม่พบรายการยา' });
     const loc = (await client.query('SELECT * FROM locations WHERE code_id = $1 AND active FOR SHARE', [p.location_id])).rows[0];
-    if (!loc) return { status: 'error', message: 'ไม่พบสถานที่เก็บ' };
+    if (!loc) return rollbackResult(client, { status: 'error', message: 'ไม่พบสถานที่เก็บ' });
     const qty = Number(p.qty);
-    if (!qty || qty <= 0) return { status: 'error', message: 'จำนวนต้องมากกว่า 0' };
+    if (!qty || qty <= 0) return rollbackResult(client, { status: 'error', message: 'จำนวนต้องมากกว่า 0' });
     const expiry = String(p.expiry_date || '').trim();
-    if (!expiry) return { status: 'error', message: 'กรุณาระบุวันหมดอายุ' };
+    if (!expiry) return rollbackResult(client, { status: 'error', message: 'กรุณาระบุวันหมดอายุ' });
     const lot = String(p.lot_no || '').trim();
-    if (drug.require_lot && !lot) return { status: 'error', message: 'ยานี้ต้องระบุ Lot No.' };
+    if (drug.require_lot && !lot) return rollbackResult(client, { status: 'error', message: 'ยานี้ต้องระบุ Lot No.' });
 
     const existing = await client.query(
       `SELECT * FROM items
@@ -552,11 +558,11 @@ async function apiAdjustItem(p, user) {
   try {
     await client.query('BEGIN');
     const item = (await client.query('SELECT * FROM items WHERE code_id = $1 AND status = $2 FOR UPDATE', [p.item_id, 'active'])).rows[0];
-    if (!item) return { status: 'error', message: 'ไม่พบรายการยา' };
+    if (!item) return rollbackResult(client, { status: 'error', message: 'ไม่พบรายการยา' });
     const actual = Number(p.actual_qty);
-    if (Number.isNaN(actual) || actual < 0) return { status: 'error', message: 'จำนวนไม่ถูกต้อง' };
+    if (Number.isNaN(actual) || actual < 0) return rollbackResult(client, { status: 'error', message: 'จำนวนไม่ถูกต้อง' });
     const before = Number(item.qty || 0);
-    if (actual === before) return { status: 'success', message: 'ไม่มีการเปลี่ยนแปลง', unchanged: true };
+    if (actual === before) return rollbackResult(client, { status: 'success', message: 'ไม่มีการเปลี่ยนแปลง', unchanged: true });
     const tx = await client.query(
       `INSERT INTO transactions (type, item_id, drug_id, from_location_id, qty, lot_no, expiry_date, reason, note, by_username)
        VALUES ('adjust', $1, $2, $3, $4, $5, $6, 'ตรวจนับ', $7, $8)
@@ -588,16 +594,16 @@ async function moveStock(p, user, type) {
   try {
     await client.query('BEGIN');
     const item = (await client.query('SELECT * FROM items WHERE code_id = $1 AND status = $2 FOR UPDATE', [p.item_id, 'active'])).rows[0];
-    if (!item) return { status: 'error', message: 'ไม่พบรายการยา หรือถูกย้ายไปแล้ว' };
+    if (!item) return rollbackResult(client, { status: 'error', message: 'ไม่พบรายการยา หรือถูกย้ายไปแล้ว' });
     const qty = Number(p.qty);
-    if (!qty || qty <= 0) return { status: 'error', message: 'จำนวนต้องมากกว่า 0' };
-    if (qty > Number(item.qty || 0)) return { status: 'error', message: `จำนวนเกินกว่าที่มี (${item.qty})` };
+    if (!qty || qty <= 0) return rollbackResult(client, { status: 'error', message: 'จำนวนต้องมากกว่า 0' });
+    if (qty > Number(item.qty || 0)) return rollbackResult(client, { status: 'error', message: `จำนวนเกินกว่าที่มี (${item.qty})` });
     const named = await mapItemWithNames(item, client);
     let dest = null;
     if (type === 'exchange') {
       dest = (await client.query('SELECT * FROM locations WHERE code_id = $1 AND active', [p.to_location_id])).rows[0];
-      if (!dest) return { status: 'error', message: 'ไม่พบสถานที่ปลายทาง' };
-      if (String(dest.id) === String(item.location_id)) return { status: 'error', message: 'ปลายทางต้องไม่ใช่สถานที่เดิม' };
+      if (!dest) return rollbackResult(client, { status: 'error', message: 'ไม่พบสถานที่ปลายทาง' });
+      if (String(dest.id) === String(item.location_id)) return rollbackResult(client, { status: 'error', message: 'ปลายทางต้องไม่ใช่สถานที่เดิม' });
     }
     const nextQty = Number(item.qty || 0) - qty;
     const nextStatus = nextQty <= 0 ? (type === 'exchange' ? 'exchanged' : (p.reason === 'เบิกใช้' ? 'used' : 'disposed')) : 'active';
@@ -938,12 +944,26 @@ async function resolveCodeId(table, codeId, client = pool) {
 
 async function saveUpload(base64, filename = '', prefix = 'file') {
   if (!base64) throw new Error('ไม่พบไฟล์รูป');
-  await fs.mkdir(uploadDir, { recursive: true });
   const match = String(base64).match(/^data:(.+?);base64,(.+)$/);
   const body = match ? match[2] : String(base64);
-  const ext = extensionFor(filename, match?.[1]);
+  const mime = match?.[1] || '';
+  const ext = extensionFor(filename, mime);
   const id = `${prefix}_${Date.now()}_${Math.random().toString(16).slice(2)}${ext}`;
-  await fs.writeFile(path.join(uploadDir, id), Buffer.from(body, 'base64'));
+  const bytes = Buffer.from(body, 'base64');
+
+  if (supabaseAdmin) {
+    const bucket = prefix === 'logo' ? 'branding' : 'drug-images';
+    const objectPath = `${prefix}/${id}`;
+    const { error } = await supabaseAdmin.storage
+      .from(bucket)
+      .upload(objectPath, bytes, { contentType: mime || mimeForExt(ext), upsert: false });
+    if (error) throw new Error(error.message);
+    const { data } = supabaseAdmin.storage.from(bucket).getPublicUrl(objectPath);
+    return { id: data.publicUrl };
+  }
+
+  await fs.mkdir(uploadDir, { recursive: true });
+  await fs.writeFile(path.join(uploadDir, id), bytes);
   return { id };
 }
 
@@ -954,6 +974,13 @@ function extensionFor(filename, mime) {
   if (mime === 'image/webp') return '.webp';
   if (mime === 'image/svg+xml') return '.svg';
   return '.png';
+}
+
+function mimeForExt(ext) {
+  if (ext === '.jpg' || ext === '.jpeg') return 'image/jpeg';
+  if (ext === '.webp') return 'image/webp';
+  if (ext === '.svg') return 'image/svg+xml';
+  return 'image/png';
 }
 
 function fileUrl(id) {
@@ -999,4 +1026,9 @@ async function logError(whereName, err) {
   } catch {
     // Avoid recursive failures while reporting errors.
   }
+}
+
+async function rollbackResult(client, result) {
+  await client.query('ROLLBACK');
+  return result;
 }

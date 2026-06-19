@@ -38,8 +38,10 @@ const Dashboard = {
     document.getElementById('byLocToggle').addEventListener('click', () => this.toggleByLoc());
 
     const r = await api('getDashboard').catch(() => null);
+    if (!document.getElementById('dashList')) return;
     if (!r || r.status !== 'success') {
-      document.getElementById('dashList').innerHTML = '<div class="hint">โหลดข้อมูลไม่ได้</div>';
+      const dashList = document.getElementById('dashList');
+      if (dashList) dashList.innerHTML = '<div class="hint">โหลดข้อมูลไม่ได้</div>';
       return;
     }
     this._summary = r.summary; this._near = r.near || []; this._byLoc = r.by_location || [];
@@ -74,6 +76,8 @@ const Dashboard = {
   },
 
   paintStats() {
+    const grid = document.getElementById('statGrid');
+    if (!grid) return;
     const s = this._summary;
     const th = this._th || App.thresholds;
     const cards = [
@@ -82,7 +86,7 @@ const Dashboard = {
       { c: 'med', f: 'med', icon: 'bi-calendar3', label: 'ภายใน ' + th.medium + ' วัน', n: s.within120 },
       { c: 'safe', f: null, icon: 'bi-check2-circle', label: 'มากกว่า ' + th.medium + ' วัน', n: s.over120 }
     ];
-    document.getElementById('statGrid').innerHTML = cards.map(c => `
+    grid.innerHTML = cards.map(c => `
       <button class="stat-card ${c.c} ${c.f ? 'tappable' : ''} ${this._filter === c.f ? 'on' : ''}" data-f="${c.f || ''}">
         <i class="bi ${c.icon} stat-ic"></i>
         <div class="stat-num">${c.n}</div>
@@ -95,7 +99,7 @@ const Dashboard = {
       this._filter = (this._filter === f) ? 'all' : f;
       this._searching = false;
       const si = document.getElementById('dashSearch'); if (si) si.value = '';
-      document.getElementById('dashClear').style.display = 'none';
+      const clear = document.getElementById('dashClear'); if (clear) clear.style.display = 'none';
       this._byLocView = false; this.syncByLocBtn();
       this.paintStats(); this.renderList();
     }));
@@ -104,6 +108,7 @@ const Dashboard = {
   bindSearch() {
     const input = document.getElementById('dashSearch');
     const clear = document.getElementById('dashClear');
+    if (!input || !clear) return;
     input.addEventListener('input', () => {
       const q = input.value.trim();
       clear.style.display = q ? 'block' : 'none';
@@ -116,9 +121,13 @@ const Dashboard = {
 
   async doSearch(q) {
     this._searching = true;
-    document.getElementById('listTitle').textContent = 'ผลการค้นหา';
-    document.getElementById('dashList').innerHTML = '<div class="hint">กำลังค้นหา...</div>';
+    const title = document.getElementById('listTitle');
+    const wrap = document.getElementById('dashList');
+    if (!title || !wrap) return;
+    title.textContent = 'ผลการค้นหา';
+    wrap.innerHTML = '<div class="hint">กำลังค้นหา...</div>';
     const r = await api('searchItems', { q }).catch(() => null);
+    if (!document.getElementById('dashList')) return;
     const list = (r && r.data) || [];
     document.getElementById('dashList').innerHTML = list.length
       ? list.map(it => this.itemRow(it)).join('')
@@ -129,7 +138,7 @@ const Dashboard = {
     this._byLocView = !this._byLocView;
     this._searching = false;
     const si = document.getElementById('dashSearch'); if (si) si.value = '';
-    document.getElementById('dashClear').style.display = 'none';
+    const clear = document.getElementById('dashClear'); if (clear) clear.style.display = 'none';
     this.syncByLocBtn();
     this.renderList();
   },
@@ -142,6 +151,7 @@ const Dashboard = {
   renderList() {
     const wrap = document.getElementById('dashList');
     const title = document.getElementById('listTitle');
+    if (!wrap || !title) return;
     if (this._searching) return; // doSearch จัดการเอง
 
     if (this._summary && this._summary.total_items === 0) {

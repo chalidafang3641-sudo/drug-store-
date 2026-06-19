@@ -65,7 +65,11 @@ async function importConfig(locationIds) {
   await client.query(
     `UPDATE app_config
         SET hospital_name = $1,
-            logo_file_id = $2,
+            logo_file_id = CASE
+              WHEN $16::boolean THEN $2
+              WHEN logo_file_id LIKE '%/storage/v1/object/public/%' THEN logo_file_id
+              ELSE $2
+            END,
             folder_id = $3,
             expiry_critical_days = $4,
             expiry_high_days = $5,
@@ -96,6 +100,7 @@ async function importConfig(locationIds) {
       stringOrEmpty(notification.notify_time || '08:00'),
       Boolean(config.display_be),
       stringOrEmpty(config.app_version || '1.0'),
+      boolEnv('LEGACY_IMPORT_OVERWRITE_LOGO', false),
     ],
   );
 

@@ -3,4 +3,5 @@ node_modules/
 .env.local
 uploads/
 legacy-exports/
+output/
 .DS_Store

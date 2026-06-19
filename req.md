@@ -94,7 +94,8 @@ Requirement:
 - ค่า default ปัจจุบันคือ 35, 60, 120 วัน
 - admin ต้องอัปโหลด/ลบโลโก้ได้
 - frontend จำกัดโลโก้ไม่เกิน 4 MB
-- backend local เก็บไฟล์ใน `uploads/`
+- backend local fallback เก็บไฟล์ใน `uploads/`
+- backend PostgreSQL/Supabase production ต้อง upload โลโก้ไป bucket `branding` และรูปยาไป bucket `drug-images` เมื่อมี `SUPABASE_SERVICE_ROLE_KEY`
 - backend Apps Script เดิมเก็บไฟล์ใน Google Drive
 - `branding` API ต้องเปิดให้เรียกโดยไม่ต้อง login เพื่อแสดงชื่อ/โลโก้ที่หน้า login
 
@@ -716,9 +717,9 @@ Constraints:
 - ย้าย auth ได้ 2 ทาง:
   - ระยะสั้น: คง `app_users` + `sessions`
   - ระยะยาว: ใช้ Supabase Auth แล้ว map role/permissions ใน profile table
-- อัปโหลดรูปควรย้ายไป Supabase Storage
+- อัปโหลดรูปควรย้ายไป Supabase Storage; backend ใหม่ทำ Storage upload แล้วเมื่อมี service role env และ fallback เป็น local `uploads/` สำหรับ dev
 - รูป/โลโก้จากระบบเก่าต้อง migrate จาก Google Drive URL/file id ผ่าน `uploads/legacy-assets/manifest.json`
-- snapshot ล่าสุดพบ legacy logo 1 ไฟล์จาก `config.logo_file_id` แต่ยังไม่พบรูปยาใน `drugs` หรือ `active_items`
+- snapshot ล่าสุดพบ legacy logo 1 ไฟล์จาก `config.logo_file_id` และ upload เข้า Supabase Storage bucket `branding` แล้ว; ยังไม่พบรูปยาใน `drugs` หรือ `active_items`
 - asset migration ต้องไม่ commit ไฟล์จริงใน `uploads/legacy-assets/`; ให้ upload เข้า Supabase Storage แล้วเก็บ storage path/reference ใน database
 - Notification ต้องมี worker/cron ใหม่ แทน Apps Script trigger
 - Data migration ต้องใช้ snapshot จาก legacy API:
@@ -741,13 +742,15 @@ Constraints:
 
 - `docs/design.md` ที่ copy มาจาก ns-erp ยังมีบริบทของระบบอื่น ต้องปรับให้ตรงกับ Drug Store ภายหลัง
 - SvelteKit scaffold ปัจจุบันยังเป็น placeholder ที่ query `countries`; ยังไม่ใช่ UI จริงของ Drug Store
-- Legacy UI/API read-only smoke test ผ่านกับ Supabase Postgres แล้ว แต่ write workflows (`receiveItem`, `exchangeItem`, `disposeItem`, `adjustItem`) ยังต้องทดสอบแบบ rollback/test database ก่อน claim ว่าเหมือนเดิมครบ
-- ห้ามถือว่า function parity ของ UI เดิมครบจนกว่า browser smoke test และ write workflow smoke test ผ่านครบ โดยต้องตรวจ stock balance, transaction record, item lifecycle และ error/auth response shape
+- Legacy UI/API read-only smoke test ผ่านกับ Supabase Postgres แล้ว
+- Write workflow smoke test ผ่านแล้วสำหรับ `receiveItem`, `exchangeItem`, `disposeItem`, `adjustItem` โดยใช้ `SMOKE-` lot, remote guard, captured ids cleanup และ post-check ว่าไม่เหลือ test rows
+- Browser smoke test ของ UI เดิมผ่านแล้วเมื่อ point `window.TW_API_URL` ไป backend ใหม่; ตรวจ login/session, dashboard/imported data, locations, receive, exchange, settings และ console error สำคัญ
+- ยังไม่ถือว่า production parity 100% จนกว่า negative/permission tests, export/history filters, settings write, notification worker และ SvelteKit cutover ผ่านครบ
 - backend PostgreSQL local ยังไม่ส่ง Telegram/LINE จริง
 - UI filter ประวัติยังไม่มีปุ่ม `adjust` แยก แม้ backend รองรับแล้ว
 - สิทธิ์ `disposeItem` ใช้ permission `receive`; อาจต้องพิจารณาแยกเป็น `stock` หรือ `dispose`
 - local backend static serve frontend จาก root เดียวกับ API เหมาะกับ dev แต่ production บน Vercel/Supabase ควรแยก config ให้ชัด
-- Apps Script backend และ local backend มี contract ใกล้กัน แต่ implementation storage ต่างกัน: Google Sheets/Drive เทียบกับ PostgreSQL/uploads
+- Apps Script backend และ local backend มี contract ใกล้กัน แต่ implementation storage ต่างกัน: Google Sheets/Drive เทียบกับ PostgreSQL/Supabase Storage พร้อม local `uploads/` fallback
 - default admin ใน schema คือ `admin/admin1234`; ไม่ควรใช้ใน production
 - session local อายุ 8 ชั่วโมงและยังไม่มี cleanup job สำหรับ session หมดอายุ
-- file upload local เก็บไฟล์ใน `uploads/` และเสิร์ฟ public path; production ต้องย้ายไป object storage
+- file upload production ใช้ Supabase Storage เมื่อมี service role env; local fallback ยังเก็บใน `uploads/` และเสิร์ฟ public path

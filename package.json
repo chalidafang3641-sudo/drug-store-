@@ -10,6 +10,10 @@
     "legacy:import": "node scripts/import-legacy-snapshot.mjs",
     "legacy:import:dry-run": "node scripts/import-legacy-snapshot.mjs --dry-run",
     "legacy:reconcile": "node scripts/reconcile-legacy-import.mjs",
+    "storage:setup": "node scripts/setup-supabase-storage.mjs",
+    "storage:buckets": "node scripts/setup-supabase-storage.mjs --buckets-only",
+    "smoke:write": "node scripts/smoke-write-workflows.mjs",
+    "smoke:ui": "node scripts/smoke-legacy-ui.mjs",
     "start": "node server/index.js",
     "dev": "node --watch server/index.js",
     "check": "node --check server/index.js"
@@ -21,5 +25,8 @@
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
     "pg": "^8.16.3"
+  },
+  "devDependencies": {
+    "playwright": "^1.61.0"
   }
 }

@@ -1,6 +1,9 @@
-import 'dotenv/config';
 import fs from 'node:fs/promises';
+import dotenv from 'dotenv';
 import { Pool } from 'pg';
+
+dotenv.config({ path: '.env', quiet: true });
+dotenv.config({ path: '.env.local', override: true, quiet: true });
 
 const snapshotPath = process.env.LEGACY_SNAPSHOT || 'legacy-exports/legacy-snapshot-latest.json';
 
