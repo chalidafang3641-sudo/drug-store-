@@ -741,7 +741,7 @@ Constraints:
 ## 26. ช่องว่าง/ข้อสังเกตจากโค้ดปัจจุบัน
 
 - `docs/design.md` ที่ copy มาจาก ns-erp ยังมีบริบทของระบบอื่น ต้องปรับให้ตรงกับ Drug Store ภายหลัง
-- SvelteKit scaffold ปัจจุบัน build ได้แล้ว, root page อ่าน branding/counts จาก Drug Store Postgres แทน `countries`, login/protected layout ใช้ legacy session cookie แล้ว, dashboard route อ่าน `getDashboard` จริง และ stock route อ่าน `getLocationStock`/`getLocationItems` จริง; receive/exchange/settings routes ยังเป็น placeholder และ stock action buttons ยังไม่ถูก migrate
+- SvelteKit scaffold ปัจจุบัน build ได้แล้ว, root page อ่าน branding/counts จาก Drug Store Postgres แทน `countries`, login/protected layout ใช้ legacy session cookie แล้ว, dashboard route อ่าน `getDashboard` จริง, stock route อ่าน `getLocationStock`/`getLocationItems` จริง และ receive route submit `receiveItem` ได้ผ่าน form action; exchange/settings routes ยังเป็น placeholder, barcode/camera/export-today ใน receive ยังไม่ถูก migrate และ stock action buttons ยังไม่ถูก migrate
 - Legacy UI/API read-only smoke test ผ่านกับ Supabase Postgres แล้ว
 - Write workflow smoke test ผ่านแล้วสำหรับ `receiveItem`, `exchangeItem`, `disposeItem`, `adjustItem` โดยใช้ `SMOKE-` lot, remote guard, captured ids cleanup และ post-check ว่าไม่เหลือ test rows
 - Browser smoke test ของ UI เดิมผ่านแล้วเมื่อ point `window.TW_API_URL` ไป backend ใหม่; ตรวจ login/session, dashboard/imported data, locations, receive, exchange, settings และ console error สำคัญ
