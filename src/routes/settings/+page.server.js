@@ -39,12 +39,13 @@ export async function load({ locals, url }) {
   const stockAccess = hasStock(locals.user);
   const drugAccess = hasDrug(locals.user);
 
-  const [locations, history, config, users, drugs, selectedItems] = await Promise.all([
+  const [locations, history, config, users, drugs, notification, selectedItems] = await Promise.all([
     api('getLocations', locals.token),
     api('getHistory', locals.token, { type: historyType, limit: 30 }),
     admin ? api('getConfig', locals.token) : Promise.resolve({ status: 'skipped' }),
     admin ? api('getUsers', locals.token) : Promise.resolve({ status: 'skipped', data: [] }),
     drugAccess ? api('getDrugs', locals.token) : Promise.resolve({ status: 'skipped', data: [] }),
+    admin ? api('getNotifyConfig', locals.token) : Promise.resolve({ status: 'skipped' }),
     selectedLocationId && stockAccess
       ? api('getLocationItems', locals.token, { location_id: selectedLocationId })
       : Promise.resolve({ status: 'skipped', data: [] })
@@ -79,6 +80,7 @@ export async function load({ locals, url }) {
     selectedItems: selectedItems.status === 'success' ? selectedItems.data || [] : [],
     history: history.status === 'success' ? history.data || [] : [],
     config: config.status === 'success' ? config.config : null,
+    notification: notification.status === 'success' ? notification.notification : null,
     users: users.status === 'success' ? users.data || [] : []
   };
 }
@@ -139,6 +141,38 @@ export const actions = {
       return fail(400, { message: result.message || 'ลบผู้ใช้ไม่สำเร็จ' });
     }
     return { ok: true, message: result.message || 'ลบผู้ใช้แล้ว' };
+  },
+
+  saveNotification: async ({ request, locals }) => {
+    if (!locals.user) redirect(303, '/login');
+
+    const form = await request.formData();
+    const payload = {
+      enabled: form.get('enabled') === 'on',
+      channel: String(form.get('channel') || 'telegram'),
+      notify_time: String(form.get('notify_time') || '08:00'),
+      telegram_chat_id: String(form.get('telegram_chat_id') || '').trim(),
+      telegram_bot_token: String(form.get('telegram_bot_token') || '').trim(),
+      line_token: String(form.get('line_token') || '').trim(),
+      clear_telegram_token: form.get('clear_telegram_token') === 'on',
+      clear_line_token: form.get('clear_line_token') === 'on'
+    };
+
+    const result = await api('saveNotifyConfig', locals.token, { notification: payload });
+    if (result.status !== 'success') {
+      return fail(400, { message: result.message || 'บันทึกการแจ้งเตือนไม่สำเร็จ' });
+    }
+    return { ok: true, message: result.message || 'บันทึกการแจ้งเตือนแล้ว' };
+  },
+
+  testNotification: async ({ locals }) => {
+    if (!locals.user) redirect(303, '/login');
+
+    const result = await api('testNotification', locals.token);
+    if (result.status !== 'success') {
+      return fail(400, { message: result.message || 'ส่งข้อความทดสอบไม่สำเร็จ' });
+    }
+    return { ok: true, message: result.message || 'ส่งข้อความทดสอบแล้ว' };
   },
 
   adjust: async ({ request, locals }) => {

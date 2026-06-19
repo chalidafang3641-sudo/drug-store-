@@ -7,6 +7,7 @@
     { id: 'users', label: 'ผู้ใช้' },
     { id: 'drugs', label: 'ยา' },
     { id: 'locations', label: 'สถานที่' },
+    { id: 'notify', label: 'แจ้งเตือน' },
     { id: 'export', label: 'ส่งออก' },
     { id: 'history', label: 'ประวัติ' },
     { id: 'audit', label: 'ตรวจนับ' }
@@ -300,6 +301,67 @@
         <p class="empty">บัญชีนี้ไม่มีสิทธิ์จัดการสถานที่</p>
       {/if}
     </section>
+  {:else if data.tab === 'notify'}
+    <section class="panel">
+      <div class="section-head">
+        <h2>การแจ้งเตือน</h2>
+        <span>{data.notification?.enabled ? 'เปิดใช้งาน' : 'ปิดอยู่'}</span>
+      </div>
+      {#if data.canAdmin && data.notification}
+        <form method="POST" action="?/saveNotification" class="notify-form">
+          <label class="check-line wide">
+            <input name="enabled" type="checkbox" checked={data.notification.enabled} />
+            <span>เปิดการแจ้งเตือนสรุปยาใกล้หมดอายุทุกวัน</span>
+          </label>
+          <label>
+            <span>ช่องทาง</span>
+            <select name="channel">
+              <option value="telegram" selected={data.notification.channel !== 'line'}>Telegram</option>
+              <option value="line" selected={data.notification.channel === 'line'}>LINE Messaging API</option>
+            </select>
+          </label>
+          <label>
+            <span>เวลาส่ง</span>
+            <input name="notify_time" type="time" value={data.notification.notify_time || '08:00'} />
+          </label>
+          <label>
+            <span>Telegram Chat ID</span>
+            <input name="telegram_chat_id" value={data.notification.telegram_chat_id || ''} autocomplete="off" placeholder="-1001234567890" />
+          </label>
+          <label>
+            <span>Telegram Bot Token</span>
+            <input
+              name="telegram_bot_token"
+              autocomplete="off"
+              placeholder={data.notification.has_telegram_token ? 'ตั้งค่าไว้แล้ว เว้นว่างถ้าไม่เปลี่ยน' : 'วาง bot token'}
+            />
+          </label>
+          <label>
+            <span>LINE Channel Access Token</span>
+            <input
+              name="line_token"
+              autocomplete="off"
+              placeholder={data.notification.has_line_token ? 'ตั้งค่าไว้แล้ว เว้นว่างถ้าไม่เปลี่ยน' : 'วาง channel access token'}
+            />
+          </label>
+          <label class="check-line">
+            <input name="clear_telegram_token" type="checkbox" />
+            <span>ลบ Telegram token</span>
+          </label>
+          <label class="check-line">
+            <input name="clear_line_token" type="checkbox" />
+            <span>ลบ LINE token</span>
+          </label>
+          <button type="submit">บันทึกการแจ้งเตือน</button>
+        </form>
+        <form method="POST" action="?/testNotification" class="test-form">
+          <button type="submit">ส่งข้อความทดสอบ</button>
+          <p class="empty">โหมด PostgreSQL local ยังต้องมี worker/cron จริงก่อนส่ง Telegram/LINE ได้</p>
+        </form>
+      {:else}
+        <p class="empty">เฉพาะผู้ดูแลระบบเท่านั้นที่ตั้งค่าการแจ้งเตือนได้</p>
+      {/if}
+    </section>
   {:else if data.tab === 'export'}
     <section class="panel">
       <div class="section-head">
@@ -539,10 +601,23 @@
   .form-grid,
   .add-user,
   .master-form,
+  .notify-form,
   .export-form {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 12px;
+  }
+
+  .notify-form {
+    align-items: end;
+  }
+
+  .test-form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin-top: 12px;
   }
 
   .master-form {
@@ -829,6 +904,7 @@
     .form-grid,
     .add-user,
     .master-form,
+    .notify-form,
     .export-form,
     .location-form,
     .image-upload,
