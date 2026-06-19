@@ -1,4 +1,5 @@
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
 CREATE TABLE IF NOT EXISTS app_config (
   id BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (id),
@@ -33,6 +34,27 @@ CREATE TABLE IF NOT EXISTS locations (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE INDEX IF NOT EXISTS locations_active_sort_idx
+  ON locations (sort_order, created_at)
+  WHERE active;
+
+CREATE INDEX IF NOT EXISTS locations_name_trgm_idx
+  ON locations USING GIN (lower(name) gin_trgm_ops)
+  WHERE active;
+
+WITH ranked_defaults AS (
+  SELECT id, row_number() OVER (ORDER BY sort_order, created_at, id) AS rn
+  FROM locations
+  WHERE active AND is_default_receive
+)
+UPDATE locations
+SET is_default_receive = FALSE
+WHERE id IN (SELECT id FROM ranked_defaults WHERE rn > 1);
+
+CREATE UNIQUE INDEX IF NOT EXISTS locations_one_default_receive_idx
+  ON locations (is_default_receive)
+  WHERE active AND is_default_receive;
+
 ALTER TABLE app_config
   DROP CONSTRAINT IF EXISTS app_config_default_receive_location_id_fkey,
   ADD CONSTRAINT app_config_default_receive_location_id_fkey
@@ -55,6 +77,22 @@ CREATE TABLE IF NOT EXISTS drugs (
 CREATE UNIQUE INDEX IF NOT EXISTS drugs_code_active_unique
   ON drugs (code)
   WHERE active AND code <> '';
+
+CREATE INDEX IF NOT EXISTS drugs_active_name_idx
+  ON drugs (name)
+  WHERE active;
+
+CREATE INDEX IF NOT EXISTS drugs_name_trgm_idx
+  ON drugs USING GIN (lower(name) gin_trgm_ops)
+  WHERE active;
+
+CREATE INDEX IF NOT EXISTS drugs_default_location_idx
+  ON drugs (default_location_id)
+  WHERE default_location_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS drugs_low_stock_idx
+  ON drugs (min_qty, id)
+  WHERE active AND min_qty > 0;
 
 CREATE TABLE IF NOT EXISTS items (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -79,6 +117,25 @@ CREATE INDEX IF NOT EXISTS items_location_active_idx ON items (location_id) WHER
 CREATE INDEX IF NOT EXISTS items_drug_active_idx ON items (drug_id) WHERE status = 'active';
 CREATE INDEX IF NOT EXISTS items_expiry_active_idx ON items (expiry_date) WHERE status = 'active';
 
+CREATE INDEX IF NOT EXISTS items_active_expiry_qty_idx
+  ON items (expiry_date, id)
+  INCLUDE (drug_id, location_id, lot_no, qty, received_by, received_at)
+  WHERE status = 'active' AND qty > 0;
+
+CREATE INDEX IF NOT EXISTS items_active_location_expiry_idx
+  ON items (location_id, expiry_date, id)
+  INCLUDE (drug_id, lot_no, qty)
+  WHERE status = 'active' AND qty > 0;
+
+CREATE INDEX IF NOT EXISTS items_active_drug_qty_idx
+  ON items (drug_id)
+  INCLUDE (qty)
+  WHERE status = 'active' AND qty > 0;
+
+CREATE INDEX IF NOT EXISTS items_lot_trgm_idx
+  ON items USING GIN (lower(lot_no) gin_trgm_ops)
+  WHERE status = 'active' AND qty > 0 AND lot_no <> '';
+
 CREATE TABLE IF NOT EXISTS transactions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   type TEXT NOT NULL CHECK (type IN ('receive', 'exchange', 'dispose', 'adjust')),
@@ -99,6 +156,11 @@ CREATE INDEX IF NOT EXISTS transactions_created_at_idx ON transactions (created_
 CREATE INDEX IF NOT EXISTS transactions_type_created_at_idx ON transactions (type, created_at DESC);
 CREATE INDEX IF NOT EXISTS transactions_item_idx ON transactions (item_id);
 CREATE INDEX IF NOT EXISTS transactions_drug_idx ON transactions (drug_id);
+CREATE INDEX IF NOT EXISTS transactions_from_location_idx ON transactions (from_location_id);
+CREATE INDEX IF NOT EXISTS transactions_to_location_idx ON transactions (to_location_id);
+CREATE INDEX IF NOT EXISTS transactions_export_idx
+  ON transactions (type, created_at, id)
+  INCLUDE (drug_id, from_location_id, to_location_id, qty, lot_no, expiry_date, reason, by_username);
 
 CREATE TABLE IF NOT EXISTS app_users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -113,6 +175,12 @@ CREATE TABLE IF NOT EXISTS app_users (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE UNIQUE INDEX IF NOT EXISTS app_users_username_lower_unique
+  ON app_users (lower(username));
+
+CREATE INDEX IF NOT EXISTS app_users_active_role_idx
+  ON app_users (active, role);
+
 CREATE TABLE IF NOT EXISTS sessions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
@@ -121,6 +189,7 @@ CREATE TABLE IF NOT EXISTS sessions (
 );
 
 CREATE INDEX IF NOT EXISTS sessions_expires_at_idx ON sessions (expires_at);
+CREATE INDEX IF NOT EXISTS sessions_user_id_idx ON sessions (user_id);
 
 CREATE TABLE IF NOT EXISTS errors (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -129,6 +198,17 @@ CREATE TABLE IF NOT EXISTS errors (
   stack TEXT NOT NULL DEFAULT '',
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+CREATE INDEX IF NOT EXISTS errors_created_at_idx ON errors (created_at DESC);
+
+ALTER TABLE app_config ENABLE ROW LEVEL SECURITY;
+ALTER TABLE locations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE drugs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE transactions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE app_users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE errors ENABLE ROW LEVEL SECURITY;
 
 CREATE OR REPLACE FUNCTION touch_updated_at()
 RETURNS TRIGGER AS $$

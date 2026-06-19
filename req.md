@@ -640,6 +640,10 @@ Constraints:
   - active item by expiry
   - transaction by created_at/type
   - session by expires_at
+- Schema ต้องเตรียม `pg_trgm` index สำหรับ search จากชื่อยา ชื่อสถานที่ และ Lot เพราะ UI ใช้ pattern ค้นหาแบบ contains
+- Index บน `items` ควรเป็น partial index สำหรับ hot subset `status = 'active' AND qty > 0` เพื่อลดขนาด index และเร่ง dashboard/stock/search
+- Transaction export/history ควรใช้ index ตาม `(type, created_at)` และหลีกเลี่ยง query ที่ cast `created_at::date` ถ้าต้องการใช้ index เต็มประสิทธิภาพ
+- Supabase schema ใน public ต้องเปิด RLS ทุกตาราง และให้ server/API ใช้ service role หรือกำหนด policy ตาม role ก่อนเปิด Data API ให้ client ใช้ตรง
 - ห้าม commit secret, `.env`, database dump, export snapshot หรือ uploaded files
 
 ## 25. Migration Requirements ไป SvelteKit + Supabase

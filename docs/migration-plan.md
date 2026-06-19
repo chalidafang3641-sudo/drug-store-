@@ -16,7 +16,7 @@ Target stack:
 - Frontend ปัจจุบันเป็น `index.html` + vanilla JavaScript แยกไฟล์ใน `js/`
 - Backend เดิมอยู่ใน `Code.gs` และใช้ Google Sheets เป็น database
 - มี Node/Express local API draft ใน `server/index.js`
-- มี PostgreSQL schema draft ใน `db/schema.sql`
+- มี PostgreSQL schema draft ใน `db/schema.sql` ที่ปรับ indexing สำหรับ Supabase/Postgres แล้ว
 - มี legacy export script ใน `scripts/export-old-api.mjs`
 - ดึง legacy snapshot ล่าสุดสำเร็จแล้วและเก็บใน `legacy-exports/` ซึ่งถูก `.gitignore`
 - มี requirement document ที่แกะจาก frontend/backend แล้วใน `req.md`
@@ -140,7 +140,8 @@ src/routes/api/+server.ts
 
 ## Phase 3: Supabase/Postgres
 
-- [ ] ปรับ `db/schema.sql` ให้เป็น Supabase migration
+- [x] ปรับ `db/schema.sql` ให้เป็น Supabase/Postgres baseline พร้อม indexing ตาม query path หลัก
+- [ ] แปลง `db/schema.sql` เป็น Supabase migration ด้วย Supabase CLI
 - [ ] เพิ่ม Supabase migrations
 - [ ] ตั้ง env ที่จำเป็น:
 
@@ -160,6 +161,16 @@ drug-images
 
 - [ ] วาง RLS/Auth strategy
 - [ ] ทำ reconciliation queries สำหรับ stock และ transactions
+
+Indexing baseline ที่ใส่แล้ว:
+
+- `pg_trgm` สำหรับค้นหาชื่อยา ชื่อสถานที่ และ Lot ด้วย `LIKE '%...%'`
+- partial indexes บน `items` สำหรับ stock active ที่ `status = 'active' AND qty > 0`
+- covering indexes สำหรับ dashboard, stock-by-location, low-stock และ export
+- FK indexes สำหรับ `transactions` location/user/session paths
+- unique partial index ให้มี default receive location ได้เพียง 1 จุด
+- lower-case unique index สำหรับ username เพื่อกันชื่อซ้ำต่างตัวพิมพ์
+- เปิด RLS ทุกตาราง public เพื่อเตรียมใช้บน Supabase
 
 ## Phase 4: Auth
 

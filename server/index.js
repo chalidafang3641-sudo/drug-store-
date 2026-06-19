@@ -305,9 +305,27 @@ async function apiReorderLocations(ids = []) {
 }
 
 async function apiSetDefaultReceive(id) {
-  await pool.query('UPDATE locations SET is_default_receive = (id = $1) WHERE active', [id]);
-  await pool.query('UPDATE app_config SET default_receive_location_id = $1 WHERE id = TRUE', [id]);
-  return { status: 'success', message: 'ตั้งจุดเริ่มต้นรับเข้าแล้ว' };
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('UPDATE locations SET is_default_receive = FALSE WHERE active AND is_default_receive');
+    const { rowCount } = await client.query(
+      'UPDATE locations SET is_default_receive = TRUE WHERE id = $1 AND active',
+      [id]
+    );
+    if (!rowCount) {
+      await client.query('ROLLBACK');
+      return { status: 'error', message: 'ไม่พบสถานที่' };
+    }
+    await client.query('UPDATE app_config SET default_receive_location_id = $1 WHERE id = TRUE', [id]);
+    await client.query('COMMIT');
+    return { status: 'success', message: 'ตั้งจุดเริ่มต้นรับเข้าแล้ว' };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 async function apiGetDrugs() {
@@ -672,8 +690,8 @@ async function apiExportData(p) {
   const types = kind === 'receive' ? ['receive'] : ['receive', 'exchange', 'dispose', 'adjust'];
   const params = [types];
   let where = 't.type = ANY($1)';
-  if (from) { params.push(from); where += ` AND t.created_at::date >= $${params.length}`; }
-  if (to) { params.push(to); where += ` AND t.created_at::date <= $${params.length}`; }
+  if (from) { params.push(from); where += ` AND t.created_at >= $${params.length}::date`; }
+  if (to) { params.push(to); where += ` AND t.created_at < ($${params.length}::date + INTERVAL '1 day')`; }
   const { rows } = await pool.query(transactionSelectSql(where, 100000, 'ASC'), params);
   const columns = kind === 'receive'
     ? ['วันที่', 'เวลา', 'ยา', 'สถานที่', 'Lot No.', 'วันหมดอายุ', 'จำนวน', 'โดย']
