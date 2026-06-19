@@ -17,6 +17,8 @@ Target stack:
 - Backend เดิมอยู่ใน `Code.gs` และใช้ Google Sheets เป็น database
 - มี Node/Express local API draft ใน `server/index.js`
 - มี PostgreSQL schema draft ใน `db/schema.sql`
+- มี legacy export script ใน `scripts/export-old-api.mjs`
+- ดึง legacy snapshot ล่าสุดสำเร็จแล้วและเก็บใน `legacy-exports/` ซึ่งถูก `.gitignore`
 - API pattern ปัจจุบันเป็น action-based:
 
 ```js
@@ -26,6 +28,38 @@ api('getDashboard')
 ```
 
 ให้คง contract นี้ไว้ระหว่าง migration เพื่อลดความเสี่ยงจากการแก้ frontend ทั้งระบบพร้อมกัน
+
+## Latest Legacy Snapshot
+
+Snapshot ล่าสุดถูกดึงจาก Google Apps Script API เดิมเมื่อ `2026-06-19T16:31:27.577Z`
+
+ไฟล์ local:
+
+```text
+legacy-exports/legacy-snapshot-latest.json
+legacy-exports/legacy-snapshot-summary.json
+```
+
+`legacy-exports/` เป็นข้อมูลจริงและถูก ignore ไม่ให้ commit
+
+สรุปข้อมูล:
+
+| Dataset | Count |
+| --- | ---: |
+| config | 1 |
+| locations | 12 |
+| drugs | 16 |
+| active stock items | 26 |
+| transactions | 54 |
+| users | 2 |
+| dashboard near-expiry rows | 4 |
+| dashboard total qty | 26 |
+
+รัน export ซ้ำได้ด้วย:
+
+```bash
+OLD_ADMIN_USER=admin OLD_ADMIN_PASSWORD=... npm run legacy:export
+```
 
 ## Phase 0: Foundation
 
@@ -151,7 +185,9 @@ drug-images
 
 ## Phase 6: Legacy Data Migration
 
-- [ ] ทำ script ดึงข้อมูลจาก Google Apps Script API เดิม
+- [x] ทำ script ดึงข้อมูลจาก Google Apps Script API เดิม
+- [x] ดึง legacy snapshot จาก API เดิมมาเก็บใน `legacy-exports/`
+- [ ] ทำ import script จาก `legacy-exports/legacy-snapshot-latest.json` เข้า Postgres/Supabase
 - [ ] ดึงและ upsert ข้อมูล:
 
 ```text
@@ -164,7 +200,10 @@ users
 ```
 
 - [ ] เก็บ source id เดิมเท่าที่ API ส่งมา
-- [ ] ทำ dry run mode
+- [ ] ทำ dry run mode สำหรับ import
+- [ ] ทำ idempotent upsert เพื่อให้ import ซ้ำแล้วข้อมูลไม่ซ้ำ
+- [ ] ตัดสินใจเรื่อง users: ไม่ย้าย plaintext password, ให้สร้าง/reset password ใหม่หรือใช้ Supabase Auth
+- [ ] ตัดสินใจเรื่องรูปยา/โลโก้: download จาก Google Drive แล้ว upload เข้า Supabase Storage หรือคง URL เดิมชั่วคราว
 - [ ] ทำ reconciliation หลัง import:
   - จำนวน locations
   - จำนวน active drugs
@@ -198,9 +237,11 @@ users
 
 ## Recommended Next Tasks
 
-1. Scaffold SvelteKit structure in a reviewable branch
-2. Add `/api` compatibility endpoint
-3. Move current Node/Postgres API into SvelteKit server modules
-4. Connect Supabase Postgres
-5. Implement login + protected layout
-6. Migrate dashboard page
+1. ทำ import script จาก legacy snapshot เข้า Postgres/Supabase
+2. ทำ reconciliation report เทียบ snapshot กับ target database
+3. Scaffold SvelteKit structure in a reviewable branch
+4. Add `/api` compatibility endpoint
+5. Move current Node/Postgres API into SvelteKit server modules
+6. Connect Supabase Postgres
+7. Implement login + protected layout
+8. Migrate dashboard page
