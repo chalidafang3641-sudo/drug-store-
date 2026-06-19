@@ -16,7 +16,11 @@
     "smoke:ui": "node scripts/smoke-legacy-ui.mjs",
     "start": "node server/index.js",
     "dev": "node --watch server/index.js",
-    "check": "node --check server/index.js"
+    "dev:svelte": "vite dev",
+    "build": "vite build",
+    "preview": "vite preview",
+    "check": "node --check server/index.js",
+    "check:svelte": "svelte-kit sync && svelte-check --tsconfig ./jsconfig.json"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.0",
@@ -27,6 +31,14 @@
     "pg": "^8.16.3"
   },
   "devDependencies": {
-    "playwright": "^1.61.0"
+    "@sveltejs/adapter-vercel": "^6.3.4",
+    "@sveltejs/kit": "^2.66.0",
+    "@sveltejs/vite-plugin-svelte": "^7.1.2",
+    "@types/node": "^26.0.0",
+    "playwright": "^1.61.0",
+    "svelte": "^5.56.3",
+    "svelte-check": "^4.6.0",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.16"
   }
 }

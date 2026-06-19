@@ -70,9 +70,9 @@ npm run legacy:reconcile
 - ข้อมูลเก่าถูก import และ reconcile แล้ว; legacy logo ถูกย้ายเข้า Supabase Storage แล้ว
 - Write workflow หลักผ่าน smoke test แล้ว: receive, exchange, dispose, adjust
 - UI เดิมผ่าน browser smoke test กับ backend ใหม่แล้วสำหรับงานหลักที่ตรวจแบบเร็ว
-- SvelteKit files ที่มีอยู่ยังเป็น placeholder smoke test ไม่ใช่ UI จริงของระบบยา
+- SvelteKit scaffold build ได้แล้ว และหน้าแรกเปลี่ยนจาก `countries` placeholder เป็นสถานะ Drug Store ที่อ่านข้อมูลจริงจาก Postgres; routes งานหลักยังเป็น placeholder รอ migrate UI จริง
 
-ดังนั้นคำตอบเชิงสถานะคือ backend ใหม่รองรับ UI เดิมได้แล้วในงานหลักระดับ smoke test แต่ยังต้องทำ QA เชิงลึก, permission/edge cases, notification/export และย้าย UI จริงเข้า SvelteKit ก่อน production cutover
+ดังนั้นคำตอบเชิงสถานะคือ backend ใหม่รองรับ UI เดิมได้แล้วในงานหลักระดับ smoke test และ SvelteKit เริ่มรัน/build ได้แล้ว แต่ยังต้องทำ QA เชิงลึก, permission/edge cases, notification/export และย้าย UI จริงเข้า SvelteKit ก่อน production cutover
 
 ---
 
@@ -115,11 +115,23 @@ npm run legacy:reconcile
    ```
 4. เปิด server
    ```bash
-   npm run dev
-   ```
+  npm run dev
+  ```
 5. เปิดเว็บที่ `http://localhost:3000`
 
 ค่าเริ่มต้นยังใช้ `admin` / `admin1234`
+
+### D. SvelteKit migration preview
+
+Express dev server เดิมยังใช้ `npm run dev` เหมือนเดิม ส่วน SvelteKit ใช้คำสั่งแยก:
+
+```bash
+npm run dev:svelte
+npm run check:svelte
+npm run build
+```
+
+SvelteKit endpoint `POST /api` reuse action contract เดิม และหน้าแรกอ่าน branding/counts จาก Postgres แล้ว
 
 ---
 

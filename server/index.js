@@ -1,11 +1,14 @@
-import 'dotenv/config';
 import cors from 'cors';
+import dotenv from 'dotenv';
 import express from 'express';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import pg from 'pg';
 import { createClient } from '@supabase/supabase-js';
+
+dotenv.config({ path: '.env', quiet: true });
+dotenv.config({ path: '.env.local', override: true, quiet: true });
 
 const { Pool } = pg;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -41,7 +44,7 @@ app.post('/api', async (req, res) => {
   let payload = {};
   try {
     payload = typeof req.body === 'string' && req.body ? JSON.parse(req.body) : {};
-    res.json(await route(payload.action, payload));
+    res.json(await handleApiPayload(payload));
   } catch (err) {
     await logError('api', err);
     res.json({ status: 'error', message: `เกิดข้อผิดพลาด: ${err.message || err}` });
@@ -50,16 +53,22 @@ app.post('/api', async (req, res) => {
 
 app.get('/api', async (req, res) => {
   try {
-    res.json(await route(req.query.action, req.query));
+    res.json(await handleApiPayload(req.query));
   } catch (err) {
     await logError('api:get', err);
     res.json({ status: 'error', message: `เกิดข้อผิดพลาด: ${err.message || err}` });
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`The Watcher API listening on ${PUBLIC_BASE_URL}`);
-});
+if (isMainModule()) {
+  app.listen(PORT, () => {
+    console.log(`The Watcher API listening on ${PUBLIC_BASE_URL}`);
+  });
+}
+
+export async function handleApiPayload(payload = {}) {
+  return route(payload.action, payload);
+}
 
 async function route(action, p) {
   switch (action) {
@@ -105,6 +114,10 @@ async function route(action, p) {
     case 'adjustItem': return guard(p, ['stock'], (user) => apiAdjustItem(p, user));
     default: return { status: 'error', message: `ไม่รู้จักคำสั่ง: ${action || ''}` };
   }
+}
+
+function isMainModule() {
+  return process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 }
 
 async function guard(p, perms, fn) {

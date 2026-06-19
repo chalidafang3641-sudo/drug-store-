@@ -1,0 +1,12 @@
+{
+  "extends": "./.svelte-kit/tsconfig.json",
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": false,
+    "moduleResolution": "bundler",
+    "strict": false,
+    "types": ["node"]
+  },
+  "include": ["src/**/*.js", "src/**/*.svelte", "svelte.config.js", "vite.config.js"],
+  "exclude": ["server/**", "scripts/**", "node_modules/**"]
+}
