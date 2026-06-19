@@ -1,5 +1,6 @@
 <script>
   export let data;
+  export let form;
 
   function expiryTone(days) {
     if (days <= 35) return 'crit';
@@ -7,6 +8,8 @@
     if (days <= 120) return 'med';
     return 'safe';
   }
+
+  const reasons = ['เบิกใช้', 'หมดอายุ', 'ชำรุด/เสียหาย', 'อื่นๆ'];
 </script>
 
 <main class="stock-shell">
@@ -38,6 +41,10 @@
       <span>{data.items.length} รายการ</span>
     </div>
 
+    {#if data.message || form?.message}
+      <p class:ok={!!data.message} class:error={!data.message}>{data.message || form.message}</p>
+    {/if}
+
     {#if data.items.length}
       <div class="item-list">
         {#each data.items as item}
@@ -51,6 +58,27 @@
               <small>หมดอายุ {item.expiry_date}</small>
             </div>
             <em class={expiryTone(item.days)}>{item.days} วัน</em>
+            <form method="POST" action="?/dispose" class="dispose-form">
+              <input type="hidden" name="item_id" value={item.id} />
+              <input type="hidden" name="selected_location_id" value={data.selected.id} />
+              <label>
+                <span>จำนวน</span>
+                <input name="qty" type="number" min="1" max={item.qty} value="1" inputmode="numeric" />
+              </label>
+              <label>
+                <span>เหตุผล</span>
+                <select name="reason">
+                  {#each reasons as reason}
+                    <option>{reason}</option>
+                  {/each}
+                </select>
+              </label>
+              <label class="note-field">
+                <span>หมายเหตุ</span>
+                <input name="note" autocomplete="off" placeholder="ถ้ามี" />
+              </label>
+              <button type="submit">ตัดจ่าย</button>
+            </form>
           </article>
         {/each}
       </div>
@@ -150,7 +178,8 @@
   }
 
   article {
-    display: flex;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
     align-items: center;
     gap: 14px;
     padding: 14px 16px;
@@ -184,6 +213,66 @@
     white-space: nowrap;
     font-style: normal;
     font-weight: 800;
+  }
+
+  .dispose-form {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: 110px minmax(140px, 180px) minmax(160px, 1fr) auto;
+    gap: 10px;
+    align-items: end;
+    padding-top: 12px;
+    border-top: 1px solid #eeeaf5;
+  }
+
+  .dispose-form label {
+    display: grid;
+    gap: 5px;
+  }
+
+  .dispose-form span {
+    color: #666174;
+    font-size: 0.78rem;
+    font-weight: 800;
+  }
+
+  .dispose-form input,
+  .dispose-form select {
+    min-height: 38px;
+    padding: 0 10px;
+    border: 1px solid #cfcadb;
+    border-radius: 8px;
+    background: #fff;
+    font: inherit;
+  }
+
+  .dispose-form button {
+    min-height: 38px;
+    padding: 0 12px;
+    border: 0;
+    border-radius: 8px;
+    background: #b42318;
+    color: #fff;
+    font: inherit;
+    font-weight: 800;
+  }
+
+  .error,
+  .ok {
+    margin-bottom: 12px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    font-weight: 700;
+  }
+
+  .error {
+    background: #fef3f2;
+    color: #b42318;
+  }
+
+  .ok {
+    background: #ecfdf3;
+    color: #067647;
   }
 
   .crit {
@@ -220,6 +309,15 @@
     article {
       align-items: flex-start;
       flex-direction: column;
+    }
+
+    article {
+      display: flex;
+    }
+
+    .dispose-form {
+      width: 100%;
+      grid-template-columns: 1fr;
     }
   }
 </style>
