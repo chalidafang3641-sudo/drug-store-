@@ -18,6 +18,7 @@ Target stack:
 - มี Node/Express local API draft ใน `server/index.js`
 - มี PostgreSQL schema draft ใน `db/schema.sql` ที่ปรับ indexing สำหรับ Supabase/Postgres แล้ว
 - มี legacy export script ใน `scripts/export-old-api.mjs`
+- มี legacy asset download script ใน `scripts/download-legacy-assets.mjs`
 - ดึง legacy snapshot ล่าสุดสำเร็จแล้วและเก็บใน `legacy-exports/` ซึ่งถูก `.gitignore`
 - มี requirement document ที่แกะจาก frontend/backend แล้วใน `req.md`
 - API pattern ปัจจุบันเป็น action-based:
@@ -208,6 +209,7 @@ Indexing baseline ที่ใส่แล้ว:
 
 - [x] ทำ script ดึงข้อมูลจาก Google Apps Script API เดิม
 - [x] ดึง legacy snapshot จาก API เดิมมาเก็บใน `legacy-exports/`
+- [x] ทำ script ดึงรูป/โลโก้จาก legacy snapshot มาเก็บใน `uploads/legacy-assets/`
 - [ ] ทำ import script จาก `legacy-exports/legacy-snapshot-latest.json` เข้า Postgres/Supabase
 - [ ] ดึงและ upsert ข้อมูล:
 
