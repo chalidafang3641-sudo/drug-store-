@@ -571,6 +571,9 @@ Fields สำคัญ:
 - `expiry_date`
 - `qty`
 - `status`
+- `closed_at`
+- `closed_reason`
+- `last_transaction_id`
 - `received_by`
 - `received_at`
 - `note`
@@ -604,7 +607,7 @@ Fields สำคัญ:
 
 ### `app_users`
 
-เก็บ user, role และ permissions
+เก็บ user, role และ permissions ของ legacy/local auth ชั่วคราวระหว่าง migration
 
 Constraints:
 
@@ -624,6 +627,41 @@ Constraints:
 - `expires_at` ใช้ตรวจหมดอายุ
 - local backend ตั้งอายุ session 8 ชั่วโมง
 
+### `roles`
+
+เก็บ role และ permission set สำหรับ Supabase Auth/profile model
+
+- seed มาตรฐาน: `admin`, `pharmacist`, `staff`
+- `permissions` เป็น text array
+- ใช้เป็นแหล่งอ้างอิงกลางแทนการ hard-code permission ในระยะยาว
+
+### `profiles`
+
+เก็บ profile ของผู้ใช้ระบบใหม่ที่ผูกกับ Supabase Auth
+
+- `auth_user_id` อ้างถึง `auth.users.id`
+- `role_id` อ้างถึง `roles.id`
+- `username` ใช้รองรับ migration/legacy user ที่ยังไม่ผูก Supabase Auth
+- ต้องมีอย่างน้อย `auth_user_id` หรือ `username`
+
+### `legacy_id_map`
+
+เก็บ mapping ระหว่าง id ระบบเก่ากับ id/code_id ระบบใหม่
+
+- ใช้สำหรับ import ซ้ำแบบ idempotent
+- unique ตาม `source_system`, `source_table`, `legacy_id`, `target_table`
+- `payload` เก็บ raw source row หรือ metadata เพื่อ audit การ import
+
+### `audit_logs`
+
+เก็บประวัติการเปลี่ยน master/config และการกระทำสำคัญที่ไม่ใช่ stock movement
+
+- `actor_profile_id` หรือ `actor_username`
+- `action`
+- `table_name`
+- `record_id` / `record_code_id`
+- `old_data` / `new_data` เป็น JSONB
+
 ### `errors`
 
 เก็บ error log ของ backend local
@@ -636,6 +674,7 @@ Constraints:
 ## 23. Business Rules สำคัญ
 
 - Stock ที่แสดงในระบบต้องนับเฉพาะ `items.status = active` และ `qty > 0`
+- เมื่อ item ปิด lifecycle เพราะย้ายหมด/ใช้หมด/ทิ้ง/ตรวจนับเป็น 0 ต้องบันทึก `closed_at`, `closed_reason`, และ `last_transaction_id`
 - รายการยา/สถานที่ที่ถูกลบต้องไม่แสดงในงานปกติ
 - การเปลี่ยนแปลง stock ทุกแบบต้องมี transaction
 - รับเข้าหรือย้ายเข้าปลายทางต้อง merge lot ถ้า key ตรงกัน

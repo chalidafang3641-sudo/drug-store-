@@ -557,11 +557,19 @@ async function apiAdjustItem(p, user) {
     if (Number.isNaN(actual) || actual < 0) return { status: 'error', message: 'จำนวนไม่ถูกต้อง' };
     const before = Number(item.qty || 0);
     if (actual === before) return { status: 'success', message: 'ไม่มีการเปลี่ยนแปลง', unchanged: true };
-    await client.query('UPDATE items SET qty = $2, status = $3 WHERE id = $1', [item.id, actual, actual <= 0 ? 'disposed' : 'active']);
-    await client.query(
+    const tx = await client.query(
       `INSERT INTO transactions (type, item_id, drug_id, from_location_id, qty, lot_no, expiry_date, reason, note, by_username)
-       VALUES ('adjust', $1, $2, $3, $4, $5, $6, 'ตรวจนับ', $7, $8)`,
+       VALUES ('adjust', $1, $2, $3, $4, $5, $6, 'ตรวจนับ', $7, $8)
+       RETURNING id`,
       [item.id, item.drug_id, item.location_id, actual, item.lot_no, item.expiry_date, `ปรับจาก ${before} เป็น ${actual}${p.note ? ` · ${p.note}` : ''}`, user.username]
+    );
+    await client.query(
+      `UPDATE items
+       SET qty = $2, status = $3, closed_at = CASE WHEN $2 <= 0 THEN now() ELSE NULL END,
+           closed_reason = CASE WHEN $2 <= 0 THEN 'ตรวจนับ' ELSE '' END,
+           last_transaction_id = $4
+       WHERE id = $1`,
+      [item.id, actual, actual <= 0 ? 'disposed' : 'active', tx.rows[0].id]
     );
     await client.query('COMMIT');
     const named = await mapItemWithNames(item);
@@ -592,7 +600,16 @@ async function moveStock(p, user, type) {
       if (String(dest.id) === String(item.location_id)) return { status: 'error', message: 'ปลายทางต้องไม่ใช่สถานที่เดิม' };
     }
     const nextQty = Number(item.qty || 0) - qty;
-    await client.query('UPDATE items SET qty = $2, status = $3 WHERE id = $1', [item.id, Math.max(nextQty, 0), nextQty <= 0 ? (type === 'exchange' ? 'exchanged' : (p.reason === 'เบิกใช้' ? 'used' : 'disposed')) : 'active']);
+    const nextStatus = nextQty <= 0 ? (type === 'exchange' ? 'exchanged' : (p.reason === 'เบิกใช้' ? 'used' : 'disposed')) : 'active';
+    const closeReason = nextQty <= 0 ? (type === 'exchange' ? 'ย้ายออกหมด' : (String(p.reason || '').trim() || 'อื่นๆ')) : '';
+    await client.query(
+      `UPDATE items
+       SET qty = $2, status = $3,
+           closed_at = CASE WHEN $2 <= 0 THEN now() ELSE NULL END,
+           closed_reason = $4
+       WHERE id = $1`,
+      [item.id, Math.max(nextQty, 0), nextStatus, closeReason]
+    );
     if (type === 'exchange') {
       const existing = (await client.query(
         `SELECT * FROM items
@@ -611,20 +628,24 @@ async function moveStock(p, user, type) {
         );
         destItemId = inserted.rows[0].id;
       }
-      await client.query(
+      const tx = await client.query(
         `INSERT INTO transactions (type, item_id, drug_id, from_location_id, to_location_id, qty, lot_no, expiry_date, by_username)
-         VALUES ('exchange', $1, $2, $3, $4, $5, $6, $7, $8)`,
+         VALUES ('exchange', $1, $2, $3, $4, $5, $6, $7, $8)
+         RETURNING id`,
         [destItemId || item.id, item.drug_id, item.location_id, dest.id, qty, item.lot_no, item.expiry_date, user.username]
       );
+      await client.query('UPDATE items SET last_transaction_id = $2 WHERE id IN ($1, $3)', [item.id, tx.rows[0].id, destItemId || item.id]);
       await client.query('COMMIT');
       return { status: 'success', message: `ย้าย ${named.drug_name} ${qty} ไป ${dest.name} แล้ว` };
     }
     const reason = String(p.reason || '').trim() || 'อื่นๆ';
-    await client.query(
+    const tx = await client.query(
       `INSERT INTO transactions (type, item_id, drug_id, from_location_id, qty, lot_no, expiry_date, reason, note, by_username)
-       VALUES ('dispose', $1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+       VALUES ('dispose', $1, $2, $3, $4, $5, $6, $7, $8, $9)
+       RETURNING id`,
       [item.id, item.drug_id, item.location_id, qty, item.lot_no, item.expiry_date, reason, String(p.note || '').trim(), user.username]
     );
+    await client.query('UPDATE items SET last_transaction_id = $2 WHERE id = $1', [item.id, tx.rows[0].id]);
     await client.query('COMMIT');
     return { status: 'success', message: `ตัดจ่าย ${named.drug_name} ${qty} (${reason})` };
   } catch (err) {
@@ -803,10 +824,12 @@ async function apiGetLowStock() {
 
 function itemSelectSql(where) {
   return `SELECT i.*, d.code_id AS drug_code_id, d.name AS drug_name, d.image_file_id,
-                 l.code_id AS location_code_id, l.name AS location_name
+                 l.code_id AS location_code_id, l.name AS location_name,
+                 lt.code_id AS last_transaction_code_id
           FROM items i
           JOIN drugs d ON d.id = i.drug_id
           JOIN locations l ON l.id = i.location_id
+          LEFT JOIN transactions lt ON lt.id = i.last_transaction_id
           WHERE ${where}`;
 }
 
@@ -868,6 +891,9 @@ function mapItem(it) {
     qty: Number(it.qty || 0),
     days: daysTo(it.expiry_date),
     status: it.status,
+    closed_at: toIso(it.closed_at),
+    closed_reason: it.closed_reason || '',
+    last_transaction_id: it.last_transaction_code_id || '',
     received_by: it.received_by || '',
     received_at: toIso(it.received_at),
     note: it.note || '',

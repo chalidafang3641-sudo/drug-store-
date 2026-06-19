@@ -166,6 +166,10 @@ Indexing baseline ที่ใส่แล้ว:
 
 - internal primary key ใช้ `BIGINT GENERATED ALWAYS AS IDENTITY`
 - public/API id ใช้ `code_id` แยกจาก internal id ทุก entity หลัก
+- เพิ่ม `roles` และ `profiles` สำหรับ Supabase Auth ระยะยาว โดยยังคง `app_users` เป็น legacy/local auth ชั่วคราว
+- เพิ่ม `legacy_id_map` สำหรับ import จาก Google Apps Script/Sheets แบบ idempotent
+- เพิ่ม `audit_logs` สำหรับบันทึกการเปลี่ยน master/config
+- เพิ่ม lifecycle fields ใน `items`: `closed_at`, `closed_reason`, `last_transaction_id`
 - `pg_trgm` สำหรับค้นหาชื่อยา ชื่อสถานที่ และ Lot ด้วย `LIKE '%...%'`
 - partial indexes บน `items` สำหรับ stock active ที่ `status = 'active' AND qty > 0`
 - covering indexes สำหรับ dashboard, stock-by-location, low-stock และ export
