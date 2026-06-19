@@ -41,6 +41,18 @@
     if (result.to) params.set('to', result.to);
     return `/settings/export?${params.toString()}`;
   }
+
+  function uploadedFor(drugId) {
+    return data.uploadedImage?.drugId === drugId ? data.uploadedImage : null;
+  }
+
+  function imageFileIdFor(drug) {
+    return uploadedFor(drug.id)?.fileId || drug.image_file_id || '';
+  }
+
+  function imageUrlFor(drug) {
+    return uploadedFor(drug.id)?.url || drug.image_url || '';
+  }
 </script>
 
 <main class="settings-shell">
@@ -164,8 +176,21 @@
         <span>{data.drugs.length} รายการ</span>
       </div>
       {#if data.canDrug}
+        <form method="POST" action="?/uploadDrugImage" enctype="multipart/form-data" class="image-upload">
+          <input type="hidden" name="drug_id" value="__new__" />
+          <div>
+            <strong>รูปยาใหม่</strong>
+            <small>{uploadedFor('__new__') ? 'อัปโหลดแล้ว รอกดเพิ่มยา' : 'เลือกไฟล์ก่อนเพิ่มยา ถ้าต้องการรูป'}</small>
+          </div>
+          {#if uploadedFor('__new__')?.url}
+            <img src={uploadedFor('__new__').url} alt="" />
+          {/if}
+          <input name="image" type="file" accept="image/*" />
+          <button type="submit">อัปโหลดรูป</button>
+        </form>
         <form method="POST" action="?/saveDrug" class="master-form">
           <h3>เพิ่มยา</h3>
+          <input type="hidden" name="image_file_id" value={uploadedFor('__new__')?.fileId || ''} />
           <input name="name" placeholder="ชื่อยา" autocomplete="off" />
           <input name="code" placeholder="Barcode / code" autocomplete="off" />
           <input name="unit" placeholder="หน่วย" autocomplete="off" />
@@ -183,8 +208,23 @@
         <div class="master-list">
           {#each data.drugs as drug}
             <article class="master-card">
+              <div class="drug-image-row">
+                <div class="drug-image">
+                  {#if imageUrlFor(drug)}
+                    <img src={imageUrlFor(drug)} alt="" />
+                  {:else}
+                    <span>ไม่มีรูป</span>
+                  {/if}
+                </div>
+                <form method="POST" action="?/uploadDrugImage" enctype="multipart/form-data" class="drug-upload-form">
+                  <input type="hidden" name="drug_id" value={drug.id} />
+                  <input name="image" type="file" accept="image/*" />
+                  <button type="submit">อัปโหลดรูป</button>
+                </form>
+              </div>
               <form method="POST" action="?/saveDrug">
                 <input type="hidden" name="id" value={drug.id} />
+                <input type="hidden" name="image_file_id" value={imageFileIdFor(drug)} />
                 <div class="master-title">
                   <strong>{drug.name}</strong>
                   <small>{drug.code || 'ไม่มี barcode'} · {drug.unit || 'ไม่ระบุหน่วย'}</small>
@@ -200,6 +240,7 @@
                   {/each}
                 </select>
                 <label class="check-line"><input name="require_lot" type="checkbox" checked={drug.require_lot} /> <span>Lot</span></label>
+                <label class="check-line"><input name="clear_image" type="checkbox" /> <span>ลบรูป</span></label>
                 <button type="submit">บันทึก</button>
               </form>
               <form method="POST" action="?/deleteDrug">
@@ -520,6 +561,55 @@
     grid-template-columns: 1fr 160px 90px auto;
   }
 
+  .image-upload,
+  .drug-image-row {
+    display: grid;
+    grid-template-columns: minmax(180px, 1fr) auto minmax(200px, 260px) auto;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 12px;
+    padding: 12px 14px;
+    border: 1px solid #eeeaf5;
+    border-radius: 8px;
+    background: #fbfafc;
+  }
+
+  .image-upload div,
+  .drug-image-row div:first-child {
+    display: grid;
+    gap: 3px;
+  }
+
+  .image-upload small {
+    color: #666174;
+  }
+
+  .image-upload img,
+  .drug-image img {
+    width: 52px;
+    height: 52px;
+    object-fit: cover;
+    border-radius: 8px;
+    background: #f0eef7;
+  }
+
+  .drug-image {
+    display: grid;
+    place-items: center;
+    width: 64px;
+    min-height: 52px;
+  }
+
+  .drug-image span {
+    color: #666174;
+    font-size: 0.78rem;
+    font-weight: 800;
+  }
+
+  .drug-upload-form {
+    display: contents;
+  }
+
   label {
     display: grid;
     gap: 6px;
@@ -741,6 +831,8 @@
     .master-form,
     .export-form,
     .location-form,
+    .image-upload,
+    .drug-image-row,
     .user-card form:first-child,
     .master-card form:first-child,
     .history-list article,
@@ -759,6 +851,11 @@
 
     .audit-list input {
       width: auto;
+    }
+
+    .drug-upload-form {
+      display: grid;
+      gap: 8px;
     }
   }
 </style>

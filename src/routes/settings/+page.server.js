@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer';
 import { fail, redirect } from '@sveltejs/kit';
 import { handleApiPayload } from '../../../server/index.js';
 
@@ -33,6 +34,7 @@ export async function load({ locals, url }) {
   const tab = url.searchParams.get('tab') || 'general';
   const selectedLocationId = url.searchParams.get('location_id') || '';
   const historyType = url.searchParams.get('type') || '';
+  const uploadedImageFileId = url.searchParams.get('uploaded_image_file_id') || '';
   const admin = hasAdmin(locals.user);
   const stockAccess = hasStock(locals.user);
   const drugAccess = hasDrug(locals.user);
@@ -66,6 +68,13 @@ export async function load({ locals, url }) {
     canDrug: drugAccess,
     locations: locationList,
     drugs: drugs.status === 'success' ? drugs.data || [] : [],
+    uploadedImage: uploadedImageFileId
+      ? {
+          drugId: url.searchParams.get('uploaded_drug_id') || '__new__',
+          fileId: uploadedImageFileId,
+          url: url.searchParams.get('uploaded_image_url') || ''
+        }
+      : null,
     selectedLocation,
     selectedItems: selectedItems.status === 'success' ? selectedItems.data || [] : [],
     history: history.status === 'success' ? history.data || [] : [],
@@ -206,7 +215,8 @@ export const actions = {
       min_qty: Number(form.get('min_qty') || 0),
       default_location_id: String(form.get('default_location_id') || ''),
       require_lot: form.get('require_lot') === 'on',
-      image_file_id: String(form.get('image_file_id') || '')
+      image_file_id: String(form.get('image_file_id') || ''),
+      clear_image: form.get('clear_image') === 'on'
     };
     if (!payload.id) delete payload.id;
 
@@ -226,6 +236,44 @@ export const actions = {
       return fail(400, { message: result.message || 'ลบรายการยาไม่สำเร็จ' });
     }
     redirect(303, `/settings?tab=drugs&message=${encodeURIComponent(result.message || 'ลบรายการยาแล้ว')}`);
+  },
+
+  uploadDrugImage: async ({ request, locals }) => {
+    if (!locals.user) redirect(303, '/login');
+
+    const form = await request.formData();
+    const drugId = String(form.get('drug_id') || '__new__');
+    const file = form.get('image');
+
+    if (!file || typeof file === 'string' || !file.size) {
+      return fail(400, { message: 'กรุณาเลือกรูปยา' });
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      return fail(400, { message: 'ไฟล์รูปต้องไม่เกิน 5MB' });
+    }
+    if (file.type && !file.type.startsWith('image/')) {
+      return fail(400, { message: 'รองรับเฉพาะไฟล์รูปภาพ' });
+    }
+
+    const bytes = Buffer.from(await file.arrayBuffer());
+    const base64 = `data:${file.type || 'image/png'};base64,${bytes.toString('base64')}`;
+    const result = await api('uploadImage', locals.token, {
+      base64,
+      filename: file.name || 'drug-image.png'
+    });
+
+    if (result.status !== 'success') {
+      return fail(400, { message: result.message || 'อัปโหลดรูปยาไม่สำเร็จ' });
+    }
+
+    const params = new URLSearchParams({
+      tab: 'drugs',
+      uploaded_drug_id: drugId,
+      uploaded_image_file_id: result.file_id || '',
+      uploaded_image_url: result.url || '',
+      message: 'อัปโหลดรูปยาแล้ว กดบันทึกยาเพื่อผูกกับรายการ'
+    });
+    redirect(303, `/settings?${params.toString()}`);
   },
 
   exportData: async ({ request, locals }) => {
