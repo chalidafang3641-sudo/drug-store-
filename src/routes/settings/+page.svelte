@@ -7,6 +7,7 @@
     { id: 'users', label: 'ผู้ใช้' },
     { id: 'drugs', label: 'ยา' },
     { id: 'locations', label: 'สถานที่' },
+    { id: 'export', label: 'ส่งออก' },
     { id: 'history', label: 'ประวัติ' },
     { id: 'audit', label: 'ตรวจนับ' }
   ];
@@ -27,6 +28,18 @@
 
   function formatDate(value) {
     return value ? new Date(value).toLocaleString('th-TH', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+  }
+
+  function today() {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  function exportHref(result) {
+    if (!result) return '';
+    const params = new URLSearchParams({ kind: result.kind || 'receive' });
+    if (result.from) params.set('from', result.from);
+    if (result.to) params.set('to', result.to);
+    return `/settings/export?${params.toString()}`;
   }
 </script>
 
@@ -246,6 +259,63 @@
         <p class="empty">บัญชีนี้ไม่มีสิทธิ์จัดการสถานที่</p>
       {/if}
     </section>
+  {:else if data.tab === 'export'}
+    <section class="panel">
+      <div class="section-head">
+        <h2>ส่งออกข้อมูล</h2>
+        <span>{form?.exportResult?.count || 0} รายการ</span>
+      </div>
+      <form method="POST" action="?/exportData" class="export-form">
+        <label>
+          <span>ประเภทข้อมูล</span>
+          <select name="kind">
+            <option value="receive" selected={form?.exportResult?.kind === 'receive'}>รับเข้า</option>
+            <option value="all" selected={!form?.exportResult || form?.exportResult?.kind === 'all'}>การเคลื่อนไหวทั้งหมด</option>
+            <option value="stock" selected={form?.exportResult?.kind === 'stock'}>สต็อกคงเหลือปัจจุบัน</option>
+          </select>
+        </label>
+        <label>
+          <span>ตั้งแต่วันที่</span>
+          <input name="from" type="date" value={form?.exportResult?.from || today()} />
+        </label>
+        <label>
+          <span>ถึงวันที่</span>
+          <input name="to" type="date" value={form?.exportResult?.to || today()} />
+        </label>
+        <button type="submit">เตรียมข้อมูล</button>
+      </form>
+
+      {#if form?.exportResult}
+        {#if form.exportResult.rows.length}
+          <div class="export-actions">
+            <a class="download" href={exportHref(form.exportResult)}>ดาวน์โหลด CSV</a>
+            <span>{form.exportResult.count} รายการ · เปิดด้วย Excel หรือ Google Sheets ได้</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  {#each form.exportResult.columns as column}
+                    <th>{column}</th>
+                  {/each}
+                </tr>
+              </thead>
+              <tbody>
+                {#each form.exportResult.rows.slice(0, 40) as row}
+                  <tr>
+                    {#each row as cell}
+                      <td>{cell}</td>
+                    {/each}
+                  </tr>
+                {/each}
+              </tbody>
+            </table>
+          </div>
+        {:else}
+          <p class="empty">ไม่มีข้อมูลในช่วงที่เลือก</p>
+        {/if}
+      {/if}
+    </section>
   {:else if data.tab === 'history'}
     <section class="panel">
       <div class="section-head">
@@ -427,7 +497,8 @@
 
   .form-grid,
   .add-user,
-  .master-form {
+  .master-form,
+  .export-form {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 12px;
@@ -495,6 +566,18 @@
     color: #fff;
     font: inherit;
     font-weight: 800;
+  }
+
+  .download {
+    display: inline-grid;
+    place-items: center;
+    min-height: 40px;
+    padding: 0 14px;
+    border-radius: 8px;
+    background: #067647;
+    color: #fff;
+    font-weight: 800;
+    text-decoration: none;
   }
 
   .danger {
@@ -565,6 +648,46 @@
     margin-top: 8px;
   }
 
+  .export-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin: 16px 0 12px;
+  }
+
+  .export-actions span {
+    color: #666174;
+    font-weight: 700;
+  }
+
+  .table-wrap {
+    overflow-x: auto;
+    border: 1px solid #eeeaf5;
+    border-radius: 8px;
+  }
+
+  table {
+    width: 100%;
+    min-width: 720px;
+    border-collapse: collapse;
+    background: #fff;
+  }
+
+  th,
+  td {
+    padding: 10px 12px;
+    border-bottom: 1px solid #eeeaf5;
+    text-align: left;
+    white-space: nowrap;
+  }
+
+  th {
+    background: #fbfafc;
+    color: #4d4858;
+    font-size: 0.82rem;
+  }
+
   button:disabled {
     background: #bdb7cc;
     cursor: not-allowed;
@@ -616,6 +739,7 @@
     .form-grid,
     .add-user,
     .master-form,
+    .export-form,
     .location-form,
     .user-card form:first-child,
     .master-card form:first-child,

@@ -226,5 +226,39 @@ export const actions = {
       return fail(400, { message: result.message || 'ลบรายการยาไม่สำเร็จ' });
     }
     redirect(303, `/settings?tab=drugs&message=${encodeURIComponent(result.message || 'ลบรายการยาแล้ว')}`);
+  },
+
+  exportData: async ({ request, locals }) => {
+    if (!locals.user) redirect(303, '/login');
+
+    const form = await request.formData();
+    const payload = {
+      kind: String(form.get('kind') || 'receive'),
+      from: String(form.get('from') || ''),
+      to: String(form.get('to') || '')
+    };
+    if (payload.kind === 'stock') {
+      payload.from = '';
+      payload.to = '';
+    }
+
+    const result = await api('exportData', locals.token, payload);
+    if (result.status !== 'success') {
+      return fail(400, { message: result.message || 'ส่งออกข้อมูลไม่สำเร็จ' });
+    }
+
+    return {
+      ok: true,
+      message: `เตรียมข้อมูล ${result.count || 0} รายการแล้ว`,
+      exportResult: {
+        kind: payload.kind,
+        from: payload.from,
+        to: payload.to,
+        filename: result.filename || 'drug-store-export.csv',
+        columns: result.columns || [],
+        rows: result.rows || [],
+        count: result.count || 0
+      }
+    };
   }
 };
