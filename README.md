@@ -32,6 +32,33 @@ Frontend: GitHub Pages (กล้องสแกนได้) · Backend: Google
 
 ---
 
+## ใช้งานบนเครื่องด้วย PostgreSQL
+
+โปรเจกต์นี้มี backend local แบบ Node.js + PostgreSQL ที่รับ API รูปแบบเดียวกับ Google Apps Script เดิม
+
+1. สร้างฐานข้อมูล
+   ```bash
+   createdb the_watcher
+   ```
+2. ตั้งค่า environment
+   ```bash
+   cp .env.example .env
+   ```
+3. ติดตั้ง dependencies และสร้าง schema
+   ```bash
+   npm install
+   npm run db:setup
+   ```
+4. เปิด server
+   ```bash
+   npm run dev
+   ```
+5. เปิดเว็บที่ `http://localhost:3000`
+
+ค่าเริ่มต้นยังใช้ `admin` / `admin1234`
+
+---
+
 ## เครื่องยิงบาร์โค้ด (HID)
 ทำงานเป็นคีย์บอร์ด ไม่ต้องลงไดรเวอร์ ตั้งให้ส่ง Enter/CR ปิดท้าย (ค่าเริ่มต้นส่วนใหญ่เป็นแบบนี้)
 หน้ารับเข้า/ช่องบาร์โค้ดจะโฟกัสรอ ยิงได้เลย ระบบแยกแยะ "เครื่องยิง" กับ "พิมพ์เอง" อัตโนมัติ

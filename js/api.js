@@ -1,6 +1,6 @@
 /* api.js - ตัวเรียก GAS Web App แบบเลี่ยง CORS preflight
    ใส่ URL /exec ที่ได้จากการ Deploy ตรงนี้ */
-const API_URL = 'https://script.google.com/macros/s/AKfycbzTlKxiQ6-XzJ4xRpLhG_RBw-CyRTbqdjcw3RtNHVi9CbN5WaJhCvilXnIQTusKbBJOOg/exec';
+const API_URL = window.TW_API_URL || 'http://localhost:3000/api';
 
 /**
  * เรียก action ฝั่ง GAS
