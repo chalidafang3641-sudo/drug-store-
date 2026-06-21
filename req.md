@@ -99,6 +99,11 @@ Requirement:
 - backend Apps Script เดิมเก็บไฟล์ใน Google Drive
 - `branding` API ต้องเปิดให้เรียกโดยไม่ต้อง login เพื่อแสดงชื่อ/โลโก้ที่หน้า login
 
+หมายเหตุ migration ปัจจุบัน:
+
+- SvelteKit `settings/general` ถูกดึง shell กลับมาใกล้ legacy แล้วในรูปแบบ logo/info block + hospital name + expiry thresholds
+- upload/delete logo flow แบบ legacy ยังไม่ครบ จึงยังไม่ควรถือว่า parity ของหน้า general เสร็จ
+
 ## 6. สถานที่เก็บยา
 
 ข้อมูลสถานที่:
@@ -407,6 +412,21 @@ Requirement:
 - การตั้งปี พ.ศ. เป็น config กลางของระบบ (`display_be`)
 - วันที่ใน UI ต้องผ่าน helper เพื่อแสดงตามค่าปี พ.ศ.
 
+หมายเหตุ migration ปัจจุบัน:
+
+- SvelteKit `settings/display` ถูกดึงกลับมาเป็น switch card แบบ legacy แล้ว
+- SvelteKit `settings/account` กลับมาเป็น read-only info card + change password form ตาม legacy แล้ว
+- SvelteKit `settings/users` กลับมาเป็น flow `list -> add/edit form` แบบ legacy แล้ว
+- SvelteKit `settings/locations` กลับมาเป็น add bar + location card list + edit shell ตาม legacy แล้ว
+- SvelteKit `settings/drugs` กลับมาเป็น flow `list -> add/edit form` + image upload shell ตาม legacy แล้ว
+- SvelteKit `settings/lot` กลับมาเป็น subtitle + auto-save switch list ตาม legacy แล้ว
+- SvelteKit `settings/history` กลับมาเป็นรายการ activity ที่แสดง type/route/lot/time ใกล้ legacy แล้ว และโหลด 80 รายการตามของเดิม
+- SvelteKit `settings/notify` กลับมาแยก field ตาม channel พร้อม hint การตั้งค่าใกล้ legacy แล้ว
+- SvelteKit `settings/audit` กลับมาเป็นเลือกสถานที่แล้วโหลดทันที และบันทึกตรวจนับแบบ inline ใกล้ legacy แล้ว
+- SvelteKit `settings/report` กลับมาเป็น select + ปุ่มพิมพ์ พร้อม print template ใกล้ legacy แล้ว
+- backend เริ่มแยก shared logic ออกจาก `server/index.js` ไป `src/lib/server/api-runtime.js`, `api-auth.js`, `api-config.js`, `api-helpers.js` แล้ว โดยยังคง action contract เดิม
+- interaction ย่อยที่ยังต้องเก็บเพิ่มให้ตรง legacy คือ confirm delete, toast wording, state revert, camera/HID scan และ shell ของ settings subviews ที่เหลือ
+
 ## 20. PWA
 
 Requirement:
@@ -558,6 +578,12 @@ Constraints:
 - `min_qty >= 0`
 - `default_location_id` อ้างถึง `locations.id`
 
+หมายเหตุ migration ปัจจุบัน:
+
+- หน้า `settings/drugs` ฝั่ง SvelteKit ใช้ flow list -> add/edit แยกจากกันตาม legacy แล้ว
+- shell upload รูปถูกแยกไว้ด้านบนของฟอร์มยาเหมือนแนวทางเดิม เพื่อรองรับการคง state ระหว่างอัปโหลด
+- camera scan, HID scan, confirm delete และ toast/state หลังบันทึกยังต้องเก็บเพิ่มให้เท่า legacy
+
 ### `items`
 
 เก็บ stock lot จริง
@@ -691,6 +717,7 @@ Constraints:
 - กล้องต้องทำงานบน HTTPS
 - API ต้องตอบเป็น JSON ภาษาไทยตาม contract เดิม
 - Frontend ต้องคง action API contract เดิมจนกว่า UI ใหม่จะ stable
+- ระหว่าง migration ไป SvelteKit ต้องถือว่า legacy frontend เป็น source of truth ของ UI ทั้งด้านสี ฟอนต์ spacing DOM structure และ visual hierarchy; framework ใหม่มีหน้าที่เปลี่ยนเฉพาะวิธี bind data / route / submit ให้ใช้กับระบบใหม่ได้
 - ระบบต้องรองรับ migration ไป SvelteKit + Supabase โดยไม่ทำ logic สำคัญหาย
 - Backend ต้องใช้ transaction/lock เมื่อลดหรือย้าย stock เพื่อกันยอดคลาดเคลื่อน
 - Query ที่ใช้บ่อยต้องมี index:
@@ -741,10 +768,11 @@ Constraints:
 ## 26. ช่องว่าง/ข้อสังเกตจากโค้ดปัจจุบัน
 
 - `docs/design.md` ที่ copy มาจาก ns-erp ยังมีบริบทของระบบอื่น ต้องปรับให้ตรงกับ Drug Store ภายหลัง
-- SvelteKit scaffold ปัจจุบัน build ได้แล้ว, root page อ่าน branding/counts จาก Drug Store Postgres แทน `countries`, login/protected layout ใช้ legacy session cookie แล้ว, dashboard route อ่าน `getDashboard` จริง, stock route อ่าน `getLocationStock`/`getLocationItems` จริงและ submit `disposeItem` ได้ผ่าน form action, receive route submit `receiveItem` ได้ผ่าน form actionพร้อม barcode/search และ export วันนี้, exchange route submit `exchangeItem` ได้ผ่าน form action และ settings route มี config/users/history filters/stock audit/master data ยาและสถานที่/upload รูปยา/export CSV/notification config แล้ว; notification worker/cron และ camera scan ใน receive ยังไม่ถูก migrate ครบ
+- SvelteKit scaffold ปัจจุบัน build ได้แล้ว, root page อ่าน branding/counts จาก Drug Store Postgres แทน `countries`, login/protected layout ใช้ legacy session cookie แล้ว, dashboard route อ่าน `getDashboard` จริง, stock route อ่าน `getLocationStock`/`getLocationItems` จริงและ submit `disposeItem` ได้ผ่าน form action, receive route submit `receiveItem` ได้ผ่าน form actionพร้อม barcode/search, HID/camera scan และ export วันนี้, exchange route submit `exchangeItem` ได้ผ่าน form action และ settings route มี config/users/history filters/stock audit/master data ยาและสถานที่/upload รูปยา/export CSV/notification config แล้ว; notification worker/cron ยังไม่ถูก migrate ครบ
 - Legacy UI/API read-only smoke test ผ่านกับ Supabase Postgres แล้ว
 - Write workflow smoke test ผ่านแล้วสำหรับ `receiveItem`, `exchangeItem`, `disposeItem`, `adjustItem` โดยใช้ `SMOKE-` lot, remote guard, captured ids cleanup และ post-check ว่าไม่เหลือ test rows
 - Browser smoke test ของ UI เดิมผ่านแล้วเมื่อ point `window.TW_API_URL` ไป backend ใหม่; ตรวจ login/session, dashboard/imported data, locations, receive, exchange, settings และ console error สำคัญ
+- หน้า `/login` ของ SvelteKit ยังไม่ถือว่าเทียบเท่า legacy UI; auth flow ใช้ได้ แต่ layout, branding composition, spacing, button/input states และ mobile-first proportions ยังต้องย้ายให้ใกล้ของเดิม
 - ยังไม่ถือว่า production parity 100% จนกว่า negative/permission tests, export/history filters, settings write, notification worker และ SvelteKit cutover ผ่านครบ
 - backend PostgreSQL local ยังไม่ส่ง Telegram/LINE จริง
 - SvelteKit settings history filter มีปุ่ม `adjust` แล้ว แต่ legacy UI filter เดิมยังไม่มีปุ่ม `adjust` แยก

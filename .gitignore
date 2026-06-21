@@ -5,4 +5,5 @@ node_modules/
 uploads/
 legacy-exports/
 output/
+.tmp/
 .DS_Store

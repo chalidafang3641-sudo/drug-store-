@@ -1,15 +1,28 @@
-# NS Scrap ERP Design Conventions
+# Drug Store Legacy UI Conventions
+
+## Mandatory Rule
+
+สำหรับโปรเจกต์ Drug Store นี้ ให้ถือว่า legacy frontend (`index.html`, `css/app.css`, `js/*.js`) เป็น source of truth ของ style และ design ทั้งหมด
+
+กติกาบังคับ:
+
+- ต้องดึงสี, ฟอนต์, spacing, radius, icon treatment, topbar, bottom nav, side menu, card shape, form shell และ visual hierarchy มาจาก legacy ก่อนเสมอ
+- DOM structure ของ SvelteKit ให้พยายามใช้ id/class/element structure เดียวกับ legacy มากที่สุด เช่น `#appHeader`, `#view`, `#bottomNav`, `.nav-btn`, `.fab-wrap`
+- ถ้าจำเป็นต้องเปลี่ยน DOM เพื่อให้ทำงานกับ SvelteKit ได้ ให้เปลี่ยนเฉพาะเท่าที่จำเป็นสำหรับ `load`, form actions, bindings, loops, conditionals, และ routing
+- ห้าม redesign, simplify, reinterpret, modernize, หรือ restyle หน้าเดิมเองระหว่าง migration ถ้ายังไม่ได้ย้าย parity ของ legacy ครบ
+- ถ้าหน้าใดยังไม่ parity ให้แก้โดยย้อนกลับไปหา legacy DOM/CSS ก่อน ไม่ใช่สร้าง component style ใหม่
+- CSS ใหม่ใน Svelte route ควรมีเท่าที่จำเป็นสำหรับการต่อเข้ากับ data flow ใหม่เท่านั้น; ถ้า style เดิมจาก `css/app.css` ใช้ได้ ต้องใช้ของเดิมก่อน
 
 ## Purpose
 
-ไฟล์นี้เป็น source of truth สำหรับ UI conventions ของ active Next app (`apps/next/`) ในส่วนที่ต้องใช้ตัดสินใจซ้ำข้ามหลายหน้า เช่น list page, filter, table, pagination, button, wording, และ column behavior
+ไฟล์นี้เป็น source of truth สำหรับการตัดสินใจเรื่อง UI migration ของ Drug Store ว่าหน้าใหม่ใน SvelteKit ต้องลอก behavior และหน้าตามาจาก legacy อย่างไร
 
 ใช้ไฟล์นี้เมื่อ:
-- สร้างหน้าใหม่ที่เป็น list/detail/form ของ ERP
-- ปรับหน้าที่มี pattern ซ้ำกับ `purchase`, `sales`, `payments`, `master-data`
-- ต้องตัดสินใจว่าหน้าใหม่ควรเหมือนหน้ามาตรฐานไหน
+- ย้ายหน้าเดิมจาก legacy มาเป็น SvelteKit
+- ตัดสินใจว่า DOM/CSS ควร reuse ของเก่าตรงไหน
+- ตรวจว่า page shell, menu, topbar, form, card และ list parity กับ legacy หรือยัง
 
-ถ้าหน้าใดต้องต่างจาก baseline นี้ ให้บันทึก override แบบระบุหน้าและเหตุผลไว้ใน `docs/migration/00-current-work.md`
+ถ้าหน้าใดต้องต่างจาก legacy จริง ๆ ให้บันทึก override พร้อมเหตุผลไว้ในเอกสาร migration ก่อนเสมอ
 
 ## Core Principles
 
@@ -19,6 +32,57 @@
 - Consistency over novelty: หน้าใกล้เคียงกันควรใช้ interaction และ wording ชุดเดียวกัน
 - Dense but readable: ข้อมูลแน่นได้ แต่ spacing, alignment, และ hierarchy ต้องนิ่ง
 - One source of wording: คำเรียกเอกสาร, สถานะ, สาขา/คลัง, payment terms ต้องไม่สลับไปมา
+
+## Current UI Parity Notes
+
+สถานะล่าสุดของ SvelteKit ฝั่ง `settings` ที่ต้องถือเป็น baseline ชั่วคราว:
+
+- root menu กลับมาใช้ `menu-item` + section label + logout link ตาม legacy แล้ว
+- `account` กลับมาเป็น read-only info card + change password form ตาม legacy
+- `general` กลับมาเป็น logo/info shell + hospital name + expiry thresholds ตาม legacy
+- `display` กลับมาเป็น switch card สำหรับ dark mode และ `display_be`
+- `users` กลับมาเป็น flow `list -> add/edit form` แบบ legacy แล้ว ไม่ใช้ inline CRUD แบบ custom อีก
+- `locations` กลับมาเป็น add bar + card list + edit shell แยกจาก list ตาม legacy แล้ว
+- `drugs` กลับมาเป็น flow `list -> add/edit form` + image upload shell ใกล้ legacy แล้ว
+- `drugs` และ `locations` มี confirm delete กลับมาตาม legacy แล้ว
+- shell กลางมี `toastHost` และ `loadingOverlay` กลับมาใน Svelte layout แล้ว เพื่อ reuse feedback แบบ legacy ข้ามหลายหน้า
+- shell กลางมี shared `sheet` host แล้ว และ `dashboard` low-stock ถูกย้ายมาใช้ผ่าน store กลาง
+- `stock` dispose form ถูกย้ายจาก inline card มาใช้ shared sheet กลางแล้ว และปุ่มย้ายจาก stock จะพาไป exchange พร้อม preselect item เดิมตรงๆ
+- `general` รองรับ upload และลบโลโก้ผ่าน settings แล้ว
+- `lot` กลับมาเป็น subtitle + auto-save switch list เรียงตามชื่อใกล้ legacy แล้ว และ rollback checkbox เมื่อ save ไม่ผ่าน
+- `locations` หน้า edit รองรับ auto-save ของชื่อ, ไอคอน และสีแล้ว
+- `display` toggle แสดงปี พ.ศ. auto-save และ rollback checkbox เมื่อ save ไม่ผ่านแล้ว
+- `drugs` หน้า add/edit รองรับรับ barcode ผ่าน HID input และสแกนผ่านกล้องแล้ว
+- `drugs` ใช้ toast/redirect feedback หลัง upload/save/delete ครบแล้ว
+- `lot` ส่ง feedback หลัง auto-save ด้วยข้อความเปิด/ปิด Lot บังคับใกล้ legacy แล้ว
+- `users` กลับมา confirm ตอนลบ และ save/delete สำเร็จแล้วกลับ list พร้อม toast ใกล้ legacy แล้ว
+- `history` กลับมาเป็น activity row ที่มี icon, type, route, lot และเวลาใกล้ legacy แล้ว
+- `history` มี filter chip ตามประเภทและ shell ของรายการครบเท่าที่ legacy ใช้งานจริงแล้ว
+- `notify` กลับมาแยก field ตาม channel, มี hint/setup note และ save/test จะ redirect กลับแท็บพร้อม toast/reload state ใกล้ legacy แล้ว
+- `notify` มี production hook ผ่าน `POST /api/notifications/run` ที่ป้องกันด้วย `NOTIFY_RUN_SECRET` แล้ว
+- `audit` กลับมาเป็นเลือกสถานที่แล้วโหลดทันที พร้อม save inline ใกล้ legacy แล้ว
+- `audit` ปุ่มบันทึกรายแถวมีสถานะกำลังบันทึก/สำเร็จและ reset เมื่อกรอกใหม่ ใกล้ legacy แล้ว
+- `report` กลับมาเป็น select + ปุ่มพิมพ์ + print template wording ใกล้ legacy แล้ว
+- `report` ปุ่มพิมพ์มี pre-open feedback ก่อนเปิดหน้ารายงานใหม่แล้ว
+- `receive` submit สำเร็จจะ redirect กลับหน้า receive พร้อม recent refresh และ toast แบบ legacy มากขึ้น
+- `exchange` submit สำเร็จจะ redirect กลับ pick state พร้อม recent refresh และ toast แบบ legacy มากขึ้น
+- desktop sidebar shell มี brand block, user summary และ logout block แล้ว
+- dashboard แยกสถานที่กดต่อเข้า stock location ได้ตรงแล้ว
+- `settings/export` มี preset วันนี้/เดือนนี้ และ shell ใกล้ export เดิมมากขึ้น
+- `login` กลับมาใช้ DOM/class ตาม legacy มากขึ้นแล้ว
+- settings root menu และ top tabs ซ่อนรายการตาม permission จริงแล้ว เพื่อลด dead-end redirect ใน Svelte shell
+- role label ใน sidebar/account shell แสดงภาษาไทยแทน code role ตรง ๆ แล้ว
+- SvelteKit ใช้ `static/css/app.css` เป็น stylesheet ที่เสิร์ฟจริง; ต้อง sync กับ `css/app.css` ทุกครั้งที่เก็บ parity จาก legacy
+- dashboard search ต้องผูกกับ reactive `data` จาก route load ไม่เก็บ snapshot ครั้งแรกไว้ใน `const` เพราะหน้าเดียวกันจะถูก reuse ตอนเปลี่ยน query string
+- browser smoke ล่าสุดผ่านเส้นทาง `login -> dashboard -> stock -> exchange`, `receive`, `settings/export` และ `settings/notify`
+- mobile smoke ผ่านอย่างน้อย `dashboard`, `stock`, `receive`, `settings`
+- shared backend layer ถูกแยก helper/auth/config/runtime ออกจากไฟล์ API หลักแล้ว เพื่อให้เก็บ parity ต่อโดยไม่กอง logic ทุกอย่างไว้จุดเดียว
+
+กติกาต่อจากนี้:
+
+- ถ้าต้องแก้ `settings` เพิ่ม ให้เริ่มจาก DOM/wording ใน `js/settings.js` ก่อน
+- ห้ามย้อนกลับไปใช้ layout แบบ card grid หรือ inline admin panel ถ้า legacy ใช้ menu/list flow
+- งานถัดไปที่ยังต้องเก็บ parity สูงคือ visual pass ของ shell หลักและ spacing/interaction ฝั่ง dashboard
 
 ## Quantity And Unit Display
 

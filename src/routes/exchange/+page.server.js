@@ -1,12 +1,12 @@
 import { fail, redirect } from '@sveltejs/kit';
+import { requirePermission } from '$lib/server/permissions.js';
 import { handleApiPayload } from '../../../server/index.js';
 
 export async function load({ locals, url }) {
-  if (!locals.user) {
-    redirect(303, '/login');
-  }
+  requirePermission(locals, ['exchange']);
 
   const q = String(url.searchParams.get('q') || '').trim();
+  const selectedItemId = String(url.searchParams.get('item_id') || '').trim();
   const [locations, recent, search] = await Promise.all([
     handleApiPayload({ action: 'getLocations', token: locals.token }),
     handleApiPayload({ action: 'recentExchanges', token: locals.token, limit: 15 }),
@@ -19,6 +19,7 @@ export async function load({ locals, url }) {
 
   return {
     q,
+    selectedItemId,
     locations: locations.data || [],
     searchResults: search.status === 'success' ? search.data || [] : [],
     recent: recent.status === 'success' ? recent.data || [] : []
@@ -27,9 +28,7 @@ export async function load({ locals, url }) {
 
 export const actions = {
   default: async ({ request, locals }) => {
-    if (!locals.user) {
-      redirect(303, '/login');
-    }
+    requirePermission(locals, ['exchange']);
 
     const form = await request.formData();
     const payload = {
@@ -54,6 +53,6 @@ export const actions = {
       return fail(400, { message: result.message || 'ย้ายยาไม่สำเร็จ', values });
     }
 
-    return { message: result.message || 'ย้ายยาแล้ว' };
+    redirect(303, '/exchange?message=' + encodeURIComponent(result.message || 'ย้ายยาแล้ว'));
   }
 };

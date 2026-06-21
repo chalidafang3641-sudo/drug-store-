@@ -1,201 +1,279 @@
 <script>
+  import { goto } from '$app/navigation';
+  import LowStockSheet from '$lib/components/dashboard/LowStockSheet.svelte';
+  import { openSheet } from '$lib/client/sheet.js';
+  import { onDestroy } from 'svelte';
+
   export let data;
 
-  const summary = data.summary || {};
-  const near = data.near || [];
-  const lowStock = data.lowStock || [];
-  const cards = [
-    { label: `ภายใน ${data.thresholds.critical || 35} วัน`, value: summary.within35 || 0, tone: 'crit' },
-    { label: `ภายใน ${data.thresholds.high || 60} วัน`, value: summary.within60 || 0, tone: 'high' },
-    { label: `ภายใน ${data.thresholds.medium || 120} วัน`, value: summary.within120 || 0, tone: 'med' },
-    { label: `มากกว่า ${data.thresholds.medium || 120} วัน`, value: summary.over120 || 0, tone: 'safe' }
+  let summary = {};
+  let thresholds = {};
+  let near = [];
+  let lowStock = [];
+  let byLocation = [];
+  let searchResults = [];
+
+  let filter = 'all';
+  let byLocView = false;
+  let searchInput;
+  let searchTimer;
+
+  const today = new Date().toLocaleDateString('th-TH', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long'
+  });
+
+  let cards = [];
+
+  function expiryBucket(days) {
+    if (days <= (thresholds.critical || 35)) return { cls: 'chip-crit', label: `${days} วัน` };
+    if (days <= (thresholds.high || 60)) return { cls: 'chip-high', label: `${days} วัน` };
+    if (days <= (thresholds.medium || 120)) return { cls: 'chip-med', label: `${days} วัน` };
+    return { cls: 'chip-safe', label: `${days} วัน` };
+  }
+
+  function formatDate(value) {
+    if (!value) return '';
+    return new Date(value).toLocaleDateString('th-TH', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    });
+  }
+
+  function drugThumb(imageUrl) {
+    return imageUrl
+      ? { image: imageUrl, placeholder: false }
+      : { image: '', placeholder: true };
+  }
+
+  function lowStockLabel(item) {
+    return item.min_qty ? `ขั้นต่ำ ${item.min_qty} ${item.unit || ''}` : 'ต่ำกว่าขั้นต่ำ';
+  }
+
+  function showLowStockSheet() {
+    openSheet({
+      title: 'ยาสต็อกต่ำ',
+      component: LowStockSheet,
+      props: {
+        items: lowStock
+      }
+    });
+  }
+
+  function queueSearchSubmit() {
+    clearTimeout(searchTimer);
+    searchTimer = window.setTimeout(() => {
+      const q = searchInput?.value?.trim() || '';
+      const nextUrl = q ? `/dashboard?q=${encodeURIComponent(q)}` : '/dashboard';
+      goto(nextUrl, {
+        keepFocus: true,
+        noScroll: true,
+        replaceState: true
+      });
+    }, 300);
+  }
+
+  onDestroy(() => {
+    clearTimeout(searchTimer);
+  });
+
+  $: summary = data.summary || {};
+  $: thresholds = data.thresholds || {};
+  $: near = data.near || [];
+  $: lowStock = data.lowStock || [];
+  $: byLocation = data.byLocation || [];
+  $: searchResults = data.searchResults || [];
+  $: cards = [
+    { id: 'crit', icon: 'bi-exclamation-triangle-fill', label: `ภายใน ${thresholds.critical || 35} วัน`, value: summary.within35 || 0, tone: 'crit' },
+    { id: 'high', icon: 'bi-calendar-event-fill', label: `ภายใน ${thresholds.high || 60} วัน`, value: summary.within60 || 0, tone: 'high' },
+    { id: 'med', icon: 'bi-calendar3', label: `ภายใน ${thresholds.medium || 120} วัน`, value: summary.within120 || 0, tone: 'med' },
+    { id: '', icon: 'bi-check2-circle', label: `มากกว่า ${thresholds.medium || 120} วัน`, value: summary.over120 || 0, tone: 'safe' }
   ];
+
+  $: filteredNear = near.filter((item) => {
+    if (filter === 'crit') return item.days <= (thresholds.critical || 35);
+    if (filter === 'high') return item.days > (thresholds.critical || 35) && item.days <= (thresholds.high || 60);
+    if (filter === 'med') return item.days > (thresholds.high || 60) && item.days <= (thresholds.medium || 120);
+    return true;
+  });
+
+  $: listTitle = data.q
+    ? 'ผลการค้นหา'
+    : byLocView
+      ? 'ใกล้หมดอายุ แยกสถานที่'
+      : filter === 'crit'
+        ? `ใกล้หมดอายุ ภายใน ${thresholds.critical || 35} วัน`
+        : filter === 'high'
+          ? `ใกล้หมดอายุ ${(thresholds.critical || 35) + 1}-${thresholds.high || 60} วัน`
+          : filter === 'med'
+            ? `ใกล้หมดอายุ ${(thresholds.high || 60) + 1}-${thresholds.medium || 120} วัน`
+            : 'รายการใกล้หมดอายุ';
 </script>
 
 <main class="dashboard-shell">
-  <section class="page-head">
+  <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:14px;gap:12px;flex-wrap:wrap">
     <div>
-      <p class="eyebrow">ภาพรวม</p>
-      <h1>Dashboard</h1>
+      <div class="page-title" style="margin-bottom:0">ภาพรวม</div>
+      <div class="page-sub" style="margin:2px 0 0">{today}</div>
     </div>
-    <div class="user-chip">{data.user?.name || data.user?.username}</div>
-  </section>
+  </div>
 
-  <section class="stat-grid" aria-label="สรุปวันหมดอายุ">
+  <div id="statGrid" class="stat-grid">
     {#each cards as card}
-      <article class={card.tone}>
-        <strong>{card.value}</strong>
-        <span>{card.label}</span>
-      </article>
+      <button
+        type="button"
+        class={`stat-card ${card.tone} ${card.id ? 'tappable' : ''} ${filter === card.id ? 'on' : ''}`}
+        onclick={() => {
+          if (!card.id) return;
+          filter = filter === card.id ? 'all' : card.id;
+          byLocView = false;
+        }}
+      >
+        <i class={`bi ${card.icon} stat-ic`}></i>
+        <div class="stat-num">{card.value}</div>
+        <div class="stat-label">{card.label}</div>
+      </button>
     {/each}
-  </section>
+  </div>
 
-  {#if lowStock.length}
-    <section class="alert-line">
-      <strong>สต็อกต่ำ</strong>
-      <span>{lowStock.length} รายการต่ำกว่าขั้นต่ำ</span>
-    </section>
-  {/if}
-
-  <section class="list-section">
-    <h2>รายการใกล้หมดอายุ</h2>
-    {#if near.length}
-      <div class="rows">
-        {#each near.slice(0, 8) as item}
-          <article class="row">
-            <div>
-              <strong>{item.drug_name}</strong>
-              <span>{item.location_name || 'ไม่ระบุ'} · จำนวน {item.qty}{item.lot_no ? ` · Lot ${item.lot_no}` : ''}</span>
-            </div>
-            <em>{item.days} วัน</em>
-          </article>
-        {/each}
-      </div>
-    {:else}
-      <p class="empty">ไม่มีรายการใกล้หมดอายุ</p>
+  <div id="lowStockBox">
+    {#if lowStock.length}
+      <button class="low-banner" type="button" onclick={showLowStockSheet}>
+        <i class="bi bi-box-seam-fill"></i>
+        <span>สต็อกต่ำกว่าขั้นต่ำ {lowStock.length} รายการ</span>
+        <i class="bi bi-chevron-right"></i>
+      </button>
     {/if}
-  </section>
+  </div>
+
+  <form class="search-wrap" method="GET">
+    <i class="bi bi-search"></i>
+    <input
+      bind:this={searchInput}
+      name="q"
+      autocomplete="off"
+      placeholder="ค้นหาชื่อยา, สถานที่, Lot"
+      value={data.q || ''}
+      oninput={queueSearchSubmit}
+    />
+    {#if data.q}
+      <a class="clear-link" href="/dashboard" aria-label="ล้างคำค้น">
+        <i class="bi bi-x-circle-fill clear"></i>
+      </a>
+    {/if}
+  </form>
+
+  <div style="display:flex;justify-content:space-between;align-items:center;margin:20px 4px 12px;gap:12px;flex-wrap:wrap">
+    <div class="section-label" style="margin:0">{listTitle}</div>
+    {#if !data.q}
+      <button id="byLocToggle" class="link-btn" type="button" onclick={() => { byLocView = !byLocView; }}>
+        {byLocView ? 'ดูเป็นรายการ' : 'ดูแยกสถานที่'}
+      </button>
+    {/if}
+  </div>
+
+  <div id="dashList">
+    {#if data.q}
+      {#if searchResults.length}
+        {#each searchResults as item}
+          {@const thumb = drugThumb(item.image_url)}
+          {@const bucket = expiryBucket(item.days)}
+          <div class="scan-row">
+            {#if thumb.placeholder}
+              <div class="thumb thumb-ph"><i class="bi bi-capsule-pill"></i></div>
+            {:else}
+              <div class="thumb"><img src={thumb.image} alt="" /></div>
+            {/if}
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:600">{item.drug_name}</div>
+              <div class="hint" style="margin:2px 0 0">{item.location_name || ''} · จำนวน {item.qty}{item.lot_no ? ` · Lot ${item.lot_no}` : ''}</div>
+            </div>
+            <div style="text-align:right">
+              <span class={`chip ${bucket.cls}`}>{bucket.label}</span>
+              <div class="hint" style="margin:3px 0 0">{formatDate(item.expiry_date)}</div>
+            </div>
+          </div>
+        {/each}
+      {:else}
+        <div class="empty-state">
+          <div class="es-title">ไม่พบรายการ</div>
+          <div>ลองคำค้นอื่น</div>
+        </div>
+      {/if}
+    {:else if summary.total_items === 0}
+      <div class="empty-state" style="padding:54px 20px">
+        <div class="es-icon"><i class="bi bi-capsule"></i></div>
+        <div class="es-title">ยังไม่มีรายการยา</div>
+        <div>แตะปุ่มรับเข้าเพื่อเพิ่มรายการแรก</div>
+      </div>
+    {:else if byLocView}
+      {#if byLocation.length}
+        {#each byLocation as item}
+          <a class="menu-item byloc-link" href={`/stock?location_id=${encodeURIComponent(item.location_id || item.id || '')}`}>
+            <div class="mi-icon"><i class="bi bi-geo-alt-fill"></i></div>
+            <div class="mi-body">
+              <div class="mi-title">{item.location_name || 'ไม่ระบุ'}</div>
+              <div class="mi-desc">ใกล้หมดอายุ {item.count} รายการ · รวม {item.qty}</div>
+            </div>
+            <div class="num" style="color:var(--brand-strong)">{item.count}</div>
+          </a>
+        {/each}
+      {:else}
+        <div class="hint">ไม่มีรายการใกล้หมดอายุ</div>
+      {/if}
+    {:else if filteredNear.length}
+      {#each filteredNear as item}
+        {@const thumb = drugThumb(item.image_url)}
+        {@const bucket = expiryBucket(item.days)}
+        <div class="scan-row">
+          {#if thumb.placeholder}
+            <div class="thumb thumb-ph"><i class="bi bi-capsule-pill"></i></div>
+          {:else}
+            <div class="thumb"><img src={thumb.image} alt="" /></div>
+          {/if}
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:600">{item.drug_name}</div>
+            <div class="hint" style="margin:2px 0 0">{item.location_name || ''} · จำนวน {item.qty}{item.lot_no ? ` · Lot ${item.lot_no}` : ''}</div>
+          </div>
+          <div style="text-align:right">
+            <span class={`chip ${bucket.cls}`}>{bucket.label}</span>
+            <div class="hint" style="margin:3px 0 0">{formatDate(item.expiry_date)}</div>
+          </div>
+        </div>
+      {/each}
+    {:else}
+      <div class="empty-state">
+        <div class="es-title">ไม่มีรายการในช่วงนี้</div>
+      </div>
+    {/if}
+  </div>
 </main>
 
 <style>
   .dashboard-shell {
-    width: min(1040px, calc(100vw - 32px));
-    margin: 0 auto;
-    padding: 28px 0 86px;
+    padding: 0;
   }
 
-  .page-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
+  #lowStockBox {
     margin-bottom: 18px;
   }
 
-  .eyebrow {
-    margin: 0 0 4px;
-    color: #5b3fc2;
-    font-size: 0.8rem;
-    font-weight: 800;
-    text-transform: uppercase;
-  }
-
-  h1,
-  h2 {
-    margin: 0;
-  }
-
-  .user-chip {
-    padding: 8px 10px;
-    border: 1px solid #dedbe8;
-    border-radius: 8px;
-    background: #fff;
-    font-weight: 700;
-  }
-
-  .stat-grid {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 12px;
-  }
-
-  article {
-    border: 1px solid #dedbe8;
-    border-radius: 8px;
-    background: #fff;
-  }
-
-  .stat-grid article {
-    padding: 16px;
-  }
-
-  .stat-grid strong {
-    display: block;
-    font-size: 2rem;
-  }
-
-  .stat-grid span {
-    color: #635e70;
-  }
-
-  .crit strong {
-    color: #b42318;
-  }
-
-  .high strong {
-    color: #b54708;
-  }
-
-  .med strong {
-    color: #5b3fc2;
-  }
-
-  .safe strong {
-    color: #067647;
-  }
-
-  .alert-line {
-    display: flex;
-    justify-content: space-between;
-    gap: 16px;
-    margin: 16px 0 0;
-    padding: 14px 16px;
-    border-radius: 8px;
-    background: #fff7ed;
-    color: #9a3412;
-  }
-
-  .list-section {
-    margin-top: 24px;
-  }
-
-  .rows {
-    display: grid;
-    gap: 10px;
-    margin-top: 12px;
-  }
-
-  .row {
-    display: flex;
+  .clear-link {
+    display: inline-flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    padding: 14px 16px;
+    text-decoration: none;
   }
 
-  .row span {
-    display: block;
-    margin-top: 3px;
-    color: #666174;
-  }
-
-  .row em {
-    white-space: nowrap;
-    color: #5b3fc2;
-    font-style: normal;
-    font-weight: 800;
-  }
-
-  .empty {
-    color: #666174;
-  }
-
-  @media (min-width: 780px) {
-    .dashboard-shell {
-      padding-left: 196px;
-    }
+  .byloc-link {
+    text-decoration: none;
+    color: inherit;
   }
 
   @media (max-width: 720px) {
-    .stat-grid {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
-    .page-head,
-    .row,
-    .alert-line {
+    #dashList .scan-row {
       align-items: flex-start;
-      flex-direction: column;
     }
   }
 </style>

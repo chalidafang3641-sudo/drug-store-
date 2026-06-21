@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" role="img" aria-labelledby="title desc">
+  <title id="title">Drug placeholder</title>
+  <desc id="desc">Placeholder image for a drug item</desc>
+  <rect width="160" height="160" rx="28" fill="#eef1ff"/>
+  <rect x="28" y="28" width="104" height="104" rx="24" fill="#dfe5ff"/>
+  <g transform="translate(80 80) rotate(-28)">
+    <rect x="-34" y="-16" width="68" height="32" rx="16" fill="#5b3fc2"/>
+    <path d="M0-16h18a16 16 0 0 1 0 32H0z" fill="#ef5a6f"/>
+    <path d="M0-16v32" stroke="#ffffff" stroke-width="6" stroke-linecap="round"/>
+  </g>
+  <circle cx="118" cy="46" r="7" fill="#ffffff" opacity="0.9"/>
+  <circle cx="46" cy="116" r="6" fill="#ffffff" opacity="0.7"/>
+</svg>

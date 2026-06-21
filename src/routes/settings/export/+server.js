@@ -1,4 +1,4 @@
-import { redirect } from '@sveltejs/kit';
+import { requirePermission } from '$lib/server/permissions.js';
 import { handleApiPayload } from '../../../../server/index.js';
 
 function csvCell(value) {
@@ -11,9 +11,7 @@ function csvBody(columns = [], rows = []) {
 }
 
 export async function GET({ locals, url }) {
-  if (!locals.user) {
-    redirect(303, '/login');
-  }
+  requirePermission(locals, ['view']);
 
   const kind = url.searchParams.get('kind') || 'receive';
   const result = await handleApiPayload({

@@ -1,10 +1,9 @@
 import { fail, redirect } from '@sveltejs/kit';
+import { requirePermission } from '$lib/server/permissions.js';
 import { handleApiPayload } from '../../../server/index.js';
 
 export async function load({ locals, url }) {
-  if (!locals.user) {
-    redirect(303, '/login');
-  }
+  requirePermission(locals, ['receive']);
 
   const q = String(url.searchParams.get('q') || '').trim();
   const [drugs, locations, recent] = await Promise.all([
@@ -44,9 +43,7 @@ export async function load({ locals, url }) {
 
 export const actions = {
   default: async ({ request, locals }) => {
-    if (!locals.user) {
-      redirect(303, '/login');
-    }
+    requirePermission(locals, ['receive']);
 
     const form = await request.formData();
     const payload = {
@@ -76,9 +73,6 @@ export const actions = {
       return fail(400, { message: result.message || 'บันทึกรับเข้าไม่สำเร็จ', values: sticky });
     }
 
-    return {
-      message: result.message || 'รับเข้าแล้ว',
-      item: result.item
-    };
+    redirect(303, '/receive?message=' + encodeURIComponent(result.message || 'รับเข้าแล้ว'));
   }
 };

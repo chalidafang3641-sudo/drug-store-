@@ -1,18 +1,19 @@
 import { fail, redirect } from '@sveltejs/kit';
+import { requirePermission } from '$lib/server/permissions.js';
 import { handleApiPayload } from '../../../server/index.js';
 
 export async function load({ locals, url }) {
-  if (!locals.user) {
-    redirect(303, '/login');
-  }
+  requirePermission(locals, ['view']);
 
-  const selectedLocationId = url.searchParams.get('location_id') || 'all';
+  const selectedLocationId = String(url.searchParams.get('location_id') || '').trim();
   const stock = await handleApiPayload({ action: 'getLocationStock', token: locals.token });
-  const items = await handleApiPayload({
-    action: 'getLocationItems',
-    token: locals.token,
-    location_id: selectedLocationId
-  });
+  const items = selectedLocationId
+    ? await handleApiPayload({
+        action: 'getLocationItems',
+        token: locals.token,
+        location_id: selectedLocationId
+      })
+    : { status: 'success', data: [] };
 
   if (stock.status !== 'success' || items.status !== 'success') {
     redirect(303, '/login');
@@ -22,11 +23,12 @@ export async function load({ locals, url }) {
     { id: 'all', name: 'รวมทุกสถานที่', color: '#16A34A', count: stock.all?.count || 0, qty: stock.all?.qty || 0 },
     ...(stock.locations || [])
   ];
-  const selected = locations.find((location) => location.id === selectedLocationId) || locations[0];
+  const selected = locations.find((location) => String(location.id) === selectedLocationId) || null;
 
   return {
     locations,
     selected,
+    selectedLocationId,
     items: items.data || [],
     message: url.searchParams.get('message') || ''
   };
@@ -34,9 +36,7 @@ export async function load({ locals, url }) {
 
 export const actions = {
   dispose: async ({ request, locals }) => {
-    if (!locals.user) {
-      redirect(303, '/login');
-    }
+    requirePermission(locals, ['receive']);
 
     const form = await request.formData();
     const payload = {

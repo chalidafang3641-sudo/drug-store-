@@ -1,88 +1,81 @@
 <script>
+  import { enhance } from '$app/forms';
+
   export let form;
   export let data;
+
+  let submitting = false;
+
+  function enhanceLogin() {
+    submitting = true;
+
+    return async ({ update }) => {
+      await update();
+      submitting = false;
+    };
+  }
 </script>
 
-<main class="login-shell">
-  <section class="login-panel">
+<main id="login">
+  <div class="brandmark" aria-hidden="true">
     {#if data.branding?.logo_url}
-      <img class="logo" src={data.branding.logo_url} alt="" />
+      <img src={data.branding.logo_url} alt="" />
+    {:else}
+      <i class="bi bi-capsule-pill"></i>
     {/if}
-    <h1>{data.branding?.hospital_name || 'The Watcher'}</h1>
-    <form method="POST">
-      <label>
-        <span>ชื่อผู้ใช้</span>
-        <input name="username" autocomplete="username" value={form?.username || ''} required />
-      </label>
-      <label>
-        <span>รหัสผ่าน</span>
-        <input name="password" type="password" autocomplete="current-password" required />
-      </label>
-      {#if form?.message}
-        <p class="error">{form.message}</p>
-      {/if}
-      <button type="submit">เข้าสู่ระบบ</button>
-    </form>
-  </section>
+  </div>
+
+  <h1>{data.branding?.hospital_name || 'The Watcher'}</h1>
+  <p class="login-sub">ระบบแจ้งเตือนวันหมดอายุของยา</p>
+
+  <form method="POST" class="login-card card-soft" use:enhance={enhanceLogin}>
+    <div class="field">
+      <label for="liUser">ชื่อผู้ใช้</label>
+      <input
+        id="liUser"
+        name="username"
+        type="text"
+        autocomplete="username"
+        placeholder="ชื่อผู้ใช้"
+        value={form?.username || ''}
+        required
+      />
+    </div>
+
+    <div class="field login-password-field">
+      <label for="liPass">รหัสผ่าน</label>
+      <input
+        id="liPass"
+        name="password"
+        type="password"
+        autocomplete="current-password"
+        placeholder="รหัสผ่าน"
+        required
+      />
+    </div>
+
+    <div class="err" aria-live="polite">{form?.message || ''}</div>
+
+    <button id="liBtn" class="btn-brand" type="submit" disabled={submitting}>
+      {submitting ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบ'}
+    </button>
+  </form>
 </main>
 
 <style>
-  .login-shell {
-    min-height: 100vh;
-    display: grid;
-    place-items: center;
-    padding: 24px;
+  .login-password-field {
+    margin-bottom: 8px;
   }
 
-  .login-panel {
-    width: min(380px, 100%);
+  .btn-brand:disabled {
+    cursor: wait;
+    opacity: 0.8;
   }
 
-  .logo {
-    width: 72px;
-    height: 72px;
-    object-fit: contain;
-    border-radius: 8px;
-    background: #fff;
-    border: 1px solid #dedbe8;
-  }
-
-  h1 {
-    margin: 14px 0 22px;
-    font-size: 1.6rem;
-  }
-
-  form,
-  label {
-    display: grid;
-    gap: 10px;
-  }
-
-  form {
-    gap: 14px;
-  }
-
-  input {
-    height: 44px;
-    padding: 0 12px;
-    border: 1px solid #cfcadb;
-    border-radius: 8px;
-    font: inherit;
-  }
-
-  button {
-    height: 46px;
-    border: 0;
-    border-radius: 8px;
-    background: #5b3fc2;
-    color: #fff;
-    font: inherit;
-    font-weight: 800;
-  }
-
-  .error {
-    margin: 0;
-    color: #b42318;
-    font-weight: 700;
+  @media (max-width: 480px) {
+    #login .login-card {
+      padding: 24px 18px 20px;
+      border-radius: 24px;
+    }
   }
 </style>

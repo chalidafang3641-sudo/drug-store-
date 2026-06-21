@@ -1,251 +1,213 @@
 <script>
+  import { enhance } from '$app/forms';
+
   export let data;
   export let form;
 
+  let selectedItemId = form?.values?.item_id || data.selectedItemId || '';
+  let exchangeSubmitting = false;
+
   $: values = form?.values || { item_id: '', to_location_id: '', qty: 1 };
+  $: if (!selectedItemId && (form?.values?.item_id || data.selectedItemId)) {
+    selectedItemId = form?.values?.item_id || data.selectedItemId;
+  }
+  $: selectedItem = data.searchResults.find((item) => String(item.id) === String(selectedItemId || values.item_id)) || null;
+  $: destinationOptions = selectedItem
+    ? data.locations.filter((location) => String(location.id) !== String(selectedItem.location_id))
+    : data.locations;
+
+  function expiryBucket(days) {
+    if (days <= 30) return { cls: 'chip-crit', label: 'ใกล้หมดมาก' };
+    if (days <= 60) return { cls: 'chip-high', label: 'ใกล้หมด' };
+    if (days <= 120) return { cls: 'chip-med', label: 'ควรเฝ้าระวัง' };
+    return { cls: 'chip-safe', label: 'ยังปลอดภัย' };
+  }
+
+  function drugThumb(imageUrl) {
+    return imageUrl || '/images/drug-placeholder.svg';
+  }
+
+  function enhanceExchange() {
+    exchangeSubmitting = true;
+
+    return async ({ update }) => {
+      await update();
+      exchangeSubmitting = false;
+    };
+  }
 </script>
 
 <main class="exchange-shell">
-  <section class="page-head">
-    <div>
-      <p class="eyebrow">แลกยา</p>
-      <h1>Exchange stock</h1>
-    </div>
-    <p class="summary">ค้นหารายการ stock ที่ต้องการย้าย เลือกปลายทางและจำนวน ระบบจะรวม Lot เดิมที่ปลายทางให้เอง</p>
-  </section>
+  <div class="page-title">แลกยา</div>
 
-  <section class="content-grid">
-    <section class="move-panel">
-      <form method="GET" class="search-form">
-        <label>
-          <span>ค้นหาชื่อยา, สถานที่, Lot</span>
-          <div class="search-row">
-            <input name="q" value={data.q || ''} autocomplete="off" placeholder="เช่น AZT, Main Stock, lot" />
-            <button type="submit">ค้นหา</button>
-          </div>
-        </label>
+  <div id="exBody">
+    {#if !selectedItem}
+      <div class="page-sub">ค้นหายาที่ต้องการย้าย แล้วเลือกสถานที่ปลายทาง</div>
+
+      <form method="GET">
+        <div class="search-wrap">
+          <i class="bi bi-search"></i>
+          <input name="q" value={data.q || ''} autocomplete="off" placeholder="ค้นหาชื่อยา, สถานที่, Lot" />
+        </div>
       </form>
 
-      <form method="POST" class="exchange-form">
-        <fieldset>
-          <legend>เลือกรายการยา</legend>
-          {#if data.searchResults.length}
-            <div class="result-list">
-              {#each data.searchResults as item}
-                <label class="result-row">
-                  <input type="radio" name="item_id" value={item.id} checked={values.item_id === item.id} required />
-                  <span>
-                    <strong>{item.drug_name}</strong>
-                    <small>{item.location_name || 'ไม่ระบุ'} · มี {item.qty}{item.lot_no ? ` · Lot ${item.lot_no}` : ''} · หมดอายุ {item.expiry_date}</small>
-                  </span>
-                </label>
+      <div id="exList" class="exchange-list">
+        {#if data.searchResults.length}
+          {#each data.searchResults as item}
+            {@const thumb = drugThumb(item.image_url)}
+            {@const bucket = expiryBucket(item.days)}
+            <button class="menu-item" type="button" onclick={() => (selectedItemId = item.id)}>
+              <div class="thumb" aria-hidden="true">
+                <img src={thumb} alt="" loading="lazy" />
+              </div>
+              <div class="mi-body">
+                <div class="mi-title">{item.drug_name}</div>
+                <div class="mi-desc">{item.location_name || ''} · จำนวน {item.qty}{item.lot_no ? ` · Lot ${item.lot_no}` : ''}</div>
+              </div>
+              <span class={`chip ${bucket.cls}`}>{bucket.label}</span>
+            </button>
+          {/each}
+        {:else if data.q}
+          <div class="hint">ไม่พบรายการ</div>
+        {:else}
+          <div class="hint">พิมพ์เพื่อค้นหารายการที่จะย้าย</div>
+        {/if}
+      </div>
+    {:else}
+      {@const thumb = drugThumb(selectedItem.image_url)}
+      {@const bucket = expiryBucket(selectedItem.days)}
+
+      <button class="btn-ghost back-btn" type="button" onclick={() => (selectedItemId = '')}>
+        <i class="bi bi-chevron-left"></i>
+        <span>กลับ</span>
+      </button>
+
+      <div class="card-soft picked-item">
+        <div class="thumb" aria-hidden="true">
+          <img src={thumb} alt="" loading="lazy" />
+        </div>
+        <div class="picked-copy">
+          <div class="picked-name">{selectedItem.drug_name}</div>
+          <div class="hint">จาก {selectedItem.location_name || ''} · มี {selectedItem.qty}{selectedItem.lot_no ? ` · Lot ${selectedItem.lot_no}` : ''}</div>
+        </div>
+        <span class={`chip ${bucket.cls}`}>{bucket.label}</span>
+      </div>
+
+      <form method="POST" class="exchange-form" use:enhance={enhanceExchange}>
+        <input type="hidden" name="item_id" value={selectedItem.id} />
+
+        <div class="field">
+          <label for="exDest">ย้ายไปที่ <span class="req-mark">*</span></label>
+          <select id="exDest" name="to_location_id" required>
+            {#if destinationOptions.length}
+              {#each destinationOptions as location}
+                <option value={location.id} selected={values.to_location_id === location.id}>{location.name}</option>
               {/each}
-            </div>
-          {:else if data.q}
-            <p class="empty">ไม่พบรายการ active stock จากคำค้นนี้</p>
-          {:else}
-            <p class="empty">ค้นหาก่อนเพื่อเลือกรายการที่จะย้าย</p>
-          {/if}
-        </fieldset>
-
-        <label>
-          <span>ย้ายไปที่</span>
-          <select name="to_location_id" required>
-            <option value="">เลือกสถานที่ปลายทาง</option>
-            {#each data.locations as location}
-              <option value={location.id} selected={values.to_location_id === location.id}>{location.name}</option>
-            {/each}
+            {:else}
+              <option value="">ไม่มีสถานที่อื่น</option>
+            {/if}
           </select>
-        </label>
+        </div>
 
-        <label>
-          <span>จำนวนที่ย้าย</span>
-          <input name="qty" type="number" min="1" inputmode="numeric" value={values.qty || 1} required />
-        </label>
+        <div class="field">
+          <label for="exQty">จำนวนที่ย้าย <span class="req-mark">*</span></label>
+          <div class="qty-row">
+            <button
+              class="qty-btn"
+              type="button"
+              onclick={() => {
+                const input = document.getElementById('exQty');
+                input.value = String(Math.max(1, (parseInt(input.value, 10) || 1) - 1));
+              }}
+            >
+              -
+            </button>
+            <input id="exQty" name="qty" type="number" min="1" max={selectedItem.qty} inputmode="numeric" value={values.qty || selectedItem.qty} required />
+            <span class="qty-unit">/ {selectedItem.qty}</span>
+            <button
+              class="qty-btn"
+              type="button"
+              onclick={() => {
+                const input = document.getElementById('exQty');
+                input.value = String(Math.min(selectedItem.qty, (parseInt(input.value, 10) || 0) + 1));
+              }}
+            >
+              +
+            </button>
+          </div>
+        </div>
 
         {#if form?.message}
-          <p class:ok={!form.values} class:error={!!form.values}>{form.message}</p>
+          <p class:ok={!form.values} class:error={!!form.values} class="status-note">{form.message}</p>
         {/if}
 
-        <button type="submit" disabled={!data.searchResults.length}>ยืนยันการย้าย</button>
+        <button class="btn-brand submit-btn" type="submit" disabled={exchangeSubmitting}>
+          <i class="bi bi-arrow-left-right"></i>
+          <span>{exchangeSubmitting ? 'กำลังย้าย...' : 'ยืนยันการย้าย'}</span>
+        </button>
       </form>
-    </section>
+    {/if}
+  </div>
 
-    <section class="recent">
-      <div class="section-head">
-        <h2>ย้ายล่าสุด</h2>
-        <span>{data.recent.length} รายการ</span>
-      </div>
-      {#if data.recent.length}
-        <div class="rows">
-          {#each data.recent as tx}
-            <article>
-              <div>
-                <strong>{tx.drug_name}</strong>
-                <span>{tx.from_location_name || 'ไม่ระบุ'} -> {tx.to_location_name || 'ไม่ระบุ'}</span>
-              </div>
-              <small>{tx.qty}</small>
-            </article>
-          {/each}
+  <div class="section-label">ย้ายล่าสุด</div>
+  <div id="exRecent">
+    {#if data.recent.length}
+      {#each data.recent as tx}
+        <div class="scan-row">
+          <div class="recent-copy">
+            <div class="recent-name">{tx.drug_name}</div>
+            <div class="hint">{tx.from_location_name || ''} <i class="bi bi-arrow-right"></i> {tx.to_location_name || ''}</div>
+          </div>
+          <div class="num recent-qty">{tx.qty}</div>
         </div>
-      {:else}
-        <p class="empty">ยังไม่มีรายการย้าย</p>
-      {/if}
-    </section>
-  </section>
+      {/each}
+    {:else}
+      <div class="hint">ยังไม่มีรายการ</div>
+    {/if}
+  </div>
 </main>
 
 <style>
   .exchange-shell {
-    width: min(1120px, calc(100vw - 32px));
-    margin: 0 auto;
-    padding: 28px 0 86px;
+    padding-bottom: 86px;
   }
 
-  .page-head {
+  .exchange-list {
+    margin-top: 14px;
+  }
+
+  .back-btn {
+    width: auto;
+    margin-bottom: 16px;
+  }
+
+  .picked-item {
     display: flex;
-    align-items: flex-end;
-    justify-content: space-between;
-    gap: 20px;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 14px 16px;
     margin-bottom: 18px;
   }
 
-  .eyebrow {
-    margin: 0 0 4px;
-    color: #5b3fc2;
-    font-size: 0.8rem;
-    font-weight: 800;
-    text-transform: uppercase;
+  .picked-copy {
+    min-width: 0;
+    flex: 1;
   }
 
-  h1,
-  h2,
-  p {
+  .picked-name,
+  .recent-name {
+    font-weight: 600;
+  }
+
+  .req-mark {
+    color: var(--danger);
+  }
+
+  .status-note {
     margin: 0;
-  }
-
-  .summary {
-    max-width: 470px;
-    color: #666174;
-    line-height: 1.5;
-  }
-
-  .content-grid {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(280px, 420px);
-    gap: 16px;
-  }
-
-  .move-panel,
-  .recent {
-    border: 1px solid #dedbe8;
-    border-radius: 8px;
-    background: #fff;
-  }
-
-  .search-form,
-  .exchange-form,
-  .recent {
-    padding: 16px;
-  }
-
-  .search-form {
-    border-bottom: 1px solid #eeeaf5;
-  }
-
-  label,
-  .exchange-form {
-    display: grid;
-    gap: 12px;
-  }
-
-  label span,
-  legend {
-    font-weight: 800;
-  }
-
-  .search-row {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    gap: 10px;
-  }
-
-  input,
-  select {
-    min-height: 44px;
-    padding: 0 12px;
-    border: 1px solid #cfcadb;
-    border-radius: 8px;
-    background: #fff;
-    font: inherit;
-  }
-
-  button {
-    min-height: 44px;
-    padding: 0 14px;
-    border: 0;
-    border-radius: 8px;
-    background: #5b3fc2;
-    color: #fff;
-    font: inherit;
-    font-weight: 800;
-  }
-
-  button:disabled {
-    cursor: not-allowed;
-    opacity: 0.45;
-  }
-
-  fieldset {
-    display: grid;
-    gap: 10px;
-    margin: 0;
-    padding: 0;
-    border: 0;
-  }
-
-  .result-list {
-    display: grid;
-    gap: 10px;
-  }
-
-  .result-row {
-    grid-template-columns: auto 1fr;
-    align-items: flex-start;
-    gap: 10px;
-    padding: 12px;
-    border: 1px solid #eeeaf5;
-    border-radius: 8px;
-  }
-
-  .result-row input {
-    min-height: auto;
-    margin-top: 4px;
-  }
-
-  .result-row small,
-  .section-head span,
-  article span,
-  article small,
-  .empty {
-    color: #666174;
-  }
-
-  .result-row small {
-    display: block;
-    margin-top: 3px;
-  }
-
-  .error,
-  .ok {
     padding: 10px 12px;
-    border-radius: 8px;
+    border-radius: 12px;
     font-weight: 700;
-  }
-
-  .error {
-    background: #fef3f2;
-    color: #b42318;
   }
 
   .ok {
@@ -253,58 +215,35 @@
     color: #067647;
   }
 
-  .section-head {
-    display: flex;
+  .error {
+    background: #fef3f2;
+    color: #b42318;
+  }
+
+  .submit-btn {
+    width: auto;
+    display: inline-flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    margin-bottom: 12px;
+    gap: 8px;
   }
 
-  .rows {
-    display: grid;
-    gap: 10px;
+  .recent-copy {
+    min-width: 0;
+    flex: 1;
   }
 
-  article {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 12px 0;
-    border-top: 1px solid #eeeaf5;
+  .recent-qty {
+    color: var(--brand-strong);
   }
 
-  article:first-child {
-    border-top: 0;
-  }
-
-  article span {
-    display: block;
-    margin-top: 3px;
-  }
-
-  article small {
-    white-space: nowrap;
-    font-weight: 800;
-  }
-
-  @media (min-width: 780px) {
-    .exchange-shell {
-      padding-left: 196px;
-    }
-  }
-
-  @media (max-width: 820px) {
-    .page-head,
-    .content-grid {
-      align-items: stretch;
-      display: flex;
-      flex-direction: column;
+  @media (max-width: 720px) {
+    .picked-item {
+      flex-wrap: wrap;
     }
 
-    .search-row {
-      grid-template-columns: 1fr;
+    .submit-btn {
+      width: 100%;
+      justify-content: center;
     }
   }
 </style>

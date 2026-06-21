@@ -1,38 +1,29 @@
 import cors from 'cors';
-import dotenv from 'dotenv';
 import express from 'express';
-import fs from 'node:fs/promises';
-import path from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
-import pg from 'pg';
-import { createClient } from '@supabase/supabase-js';
-
-dotenv.config({ path: '.env', quiet: true });
-dotenv.config({ path: '.env.local', override: true, quiet: true });
-
-const { Pool } = pg;
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const rootDir = path.resolve(__dirname, '..');
-const uploadDir = path.join(rootDir, 'uploads');
-
-const PORT = Number(process.env.PORT || 3000);
-const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || `http://localhost:${PORT}`).replace(/\/$/, '');
-const SESSION_HOURS = 8;
-const SUPABASE_URL = process.env.SUPABASE_URL || process.env.PUBLIC_SUPABASE_URL || '';
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
-
-const ROLES = {
-  admin: { name: 'ผู้ดูแลระบบ', permissions: ['*'] },
-  pharmacist: { name: 'เภสัชกร', permissions: ['stock', 'drug', 'exchange', 'receive', 'view'] },
-  staff: { name: 'เจ้าหน้าที่', permissions: ['receive', 'view'] }
-};
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgres://localhost:5432/the_watcher'
-});
-const supabaseAdmin = SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY
-  ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } })
-  : null;
+import { pathToFileURL } from 'node:url';
+import {
+  dateOnly,
+  daysTo,
+  exportName,
+  fileUrl,
+  itemSelectSql,
+  logError,
+  mapDrug,
+  mapItem,
+  mapItemWithNames,
+  mapLocation,
+  mapTransaction,
+  now,
+  resolveCodeId,
+  rollbackResult,
+  saveUpload,
+  toIso,
+  transactionSelectSql
+} from '../src/lib/server/api-helpers.js';
+import { apiLogin, apiLogout, guard, publicUser, ROLES } from '../src/lib/server/api-auth.js';
+import { apiBranding, apiGetConfig, apiSaveConfig, configOut, readConfig } from '../src/lib/server/api-config.js';
+import { PORT, PUBLIC_BASE_URL, rootDir, uploadDir } from '../src/lib/server/api-runtime.js';
+import { pool } from '../src/lib/server/postgres.js';
 
 const app = express();
 app.use(cors());
@@ -120,151 +111,6 @@ function isMainModule() {
   return process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 }
 
-async function guard(p, perms, fn) {
-  const user = await getSessionUser(p.token);
-  if (!user) return { status: 'error', code: 'AUTH', message: 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่' };
-  if (!hasPerm(user, perms)) return { status: 'error', message: 'ไม่มีสิทธิ์ใช้งานส่วนนี้' };
-  return fn(user);
-}
-
-function hasPerm(user, perms) {
-  const userPerms = user.permissions || [];
-  if (userPerms.includes('*')) return true;
-  return perms.some((perm) => perm !== '*' && userPerms.includes(perm));
-}
-
-function publicUser(user) {
-  return { username: user.username, name: user.name, role: user.role, permissions: user.permissions || [] };
-}
-
-async function apiLogin(username, password) {
-  if (!username || !password) return { status: 'error', message: 'กรุณากรอกชื่อผู้ใช้และรหัสผ่าน' };
-  const { rows } = await pool.query(
-    `SELECT id, code_id, username, role, name, permissions, active
-     FROM app_users
-     WHERE username = $1 AND password_hash = crypt($2, password_hash)`,
-    [String(username).trim(), String(password)]
-  );
-  const user = rows[0];
-  if (!user || !user.active) return { status: 'error', message: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' };
-  const expiresAt = new Date(Date.now() + SESSION_HOURS * 60 * 60 * 1000);
-  const session = await pool.query(
-    'INSERT INTO sessions (user_id, expires_at) VALUES ($1, $2) RETURNING code_id',
-    [user.id, expiresAt]
-  );
-  await pool.query('UPDATE app_users SET last_login = now() WHERE id = $1', [user.id]);
-  return { status: 'success', token: session.rows[0].code_id, user: publicUser(user) };
-}
-
-async function apiLogout(token) {
-  if (token) await pool.query('DELETE FROM sessions WHERE code_id = $1', [token]).catch(() => {});
-  return { status: 'success', message: 'ออกจากระบบแล้ว' };
-}
-
-async function getSessionUser(token) {
-  if (!token) return null;
-  const { rows } = await pool.query(
-    `SELECT u.id, u.code_id, u.username, u.role, u.name, u.permissions, u.active
-     FROM sessions s
-     JOIN app_users u ON u.id = s.user_id
-     WHERE s.code_id = $1 AND s.expires_at > now()`,
-    [token]
-  );
-  return rows[0] && rows[0].active ? rows[0] : null;
-}
-
-async function readConfig() {
-  const { rows } = await pool.query(
-    `SELECT c.*, l.code_id AS default_receive_location_code_id
-     FROM app_config c
-     LEFT JOIN locations l ON l.id = c.default_receive_location_id
-     WHERE c.id = TRUE`
-  );
-  return rows[0];
-}
-
-function configOut(c, includeSecrets = true) {
-  const out = {
-    hospital_name: c.hospital_name,
-    logo_file_id: c.logo_file_id,
-    logo_url: c.logo_file_id ? fileUrl(c.logo_file_id) : '',
-    folder_id: c.folder_id,
-    expiry_thresholds: {
-      critical: c.expiry_critical_days,
-      high: c.expiry_high_days,
-      medium: c.expiry_medium_days
-    },
-    default_receive_location_id: c.default_receive_location_code_id || '',
-    notification: {
-      enabled: c.notification_enabled,
-      channel: c.notification_channel,
-      notify_time: c.notify_time,
-      telegram_chat_id: c.telegram_chat_id,
-      has_telegram: !!c.telegram_bot_token,
-      has_line: !!c.line_token,
-      has_telegram_token: !!c.telegram_bot_token,
-      has_line_token: !!c.line_token
-    },
-    display_be: c.display_be,
-    app_version: c.app_version,
-    created_at: toIso(c.created_at),
-    updated_at: toIso(c.updated_at)
-  };
-  if (includeSecrets) {
-    out.notification.telegram_bot_token = c.telegram_bot_token;
-    out.notification.line_token = c.line_token;
-  }
-  return out;
-}
-
-async function apiBranding() {
-  const c = await readConfig();
-  return {
-    status: 'success',
-    branding: {
-      hospital_name: c.hospital_name,
-      logo_url: c.logo_file_id ? fileUrl(c.logo_file_id) : '',
-      app_name: 'The Watcher',
-      app_version: c.app_version,
-      thresholds: {
-        critical: c.expiry_critical_days,
-        high: c.expiry_high_days,
-        medium: c.expiry_medium_days
-      },
-      display_be: c.display_be
-    }
-  };
-}
-
-async function apiGetConfig() {
-  return { status: 'success', config: configOut(await readConfig(), false) };
-}
-
-async function apiSaveConfig(patch = {}) {
-  const c = await readConfig();
-  const defaultReceiveLocationId = patch.default_receive_location_id !== undefined
-    ? await resolveCodeId('locations', patch.default_receive_location_id)
-    : c.default_receive_location_id;
-  const next = {
-    hospital_name: patch.hospital_name !== undefined ? String(patch.hospital_name).trim() : c.hospital_name,
-    default_receive_location_id: defaultReceiveLocationId,
-    display_be: patch.display_be !== undefined ? !!patch.display_be : c.display_be,
-    critical: patch.expiry_thresholds ? Number(patch.expiry_thresholds.critical) : c.expiry_critical_days,
-    high: patch.expiry_thresholds ? Number(patch.expiry_thresholds.high) : c.expiry_high_days,
-    medium: patch.expiry_thresholds ? Number(patch.expiry_thresholds.medium) : c.expiry_medium_days
-  };
-  if (!(next.critical > 0 && next.high > next.critical && next.medium > next.high)) {
-    return { status: 'error', message: 'ช่วงเตือนต้องเรียงจากน้อยไปมาก' };
-  }
-  await pool.query(
-    `UPDATE app_config
-     SET hospital_name = $1, default_receive_location_id = $2, display_be = $3,
-         expiry_critical_days = $4, expiry_high_days = $5, expiry_medium_days = $6
-     WHERE id = TRUE`,
-    [next.hospital_name, next.default_receive_location_id, next.display_be, next.critical, next.high, next.medium]
-  );
-  return { status: 'success', message: 'บันทึกการตั้งค่าแล้ว', config: { hospital_name: next.hospital_name } };
-}
 
 async function apiUploadLogo(base64, filename) {
   const saved = await saveUpload(base64, filename, 'logo');
@@ -721,8 +567,127 @@ async function apiSaveNotifyConfig(patch = {}) {
   return { status: 'success', message: 'บันทึกการแจ้งเตือนแล้ว' };
 }
 
+function notificationLines(title, rows = []) {
+  return rows.filter(Boolean).map((row) => `- ${row}`).join('\n');
+}
+
+function buildNotificationMessage({ hospitalName, near = [], low = [], test = false }) {
+  const header = `${hospitalName || 'The Watcher'}${test ? ' - ข้อความทดสอบ' : ' - สรุปแจ้งเตือนยา'}`;
+  const lines = [header];
+
+  if (test) {
+    lines.push('ระบบส่งข้อความเชื่อมต่อสำเร็จ');
+  }
+
+  if (near.length) {
+    lines.push(`ใกล้หมดอายุ ${near.length} รายการ`);
+    lines.push(
+      notificationLines(
+        'near',
+        near.slice(0, 8).map((item) => {
+          const days = item.days < 0 ? 'หมดอายุแล้ว' : `เหลือ ${item.days} วัน`;
+          const lot = item.lot_no ? ` Lot ${item.lot_no}` : '';
+          return `${item.drug_name}${lot} @ ${item.location_name || '-'} (${days})`;
+        })
+      )
+    );
+  } else if (!test) {
+    lines.push('วันนี้ไม่มียาใกล้หมดอายุ');
+  }
+
+  if (low.length) {
+    lines.push(`สต็อกต่ำ ${low.length} รายการ`);
+    lines.push(
+      notificationLines(
+        'low',
+        low.slice(0, 5).map((item) => `${item.name} คงเหลือ ${item.total} / ขั้นต่ำ ${item.min_qty || 0}`)
+      )
+    );
+  }
+
+  return lines.filter(Boolean).join('\n');
+}
+
+async function sendTelegramMessage(botToken, chatId, text) {
+  if (!botToken || !chatId) {
+    return { status: 'error', message: 'ตั้งค่า Telegram bot token และ chat id ให้ครบก่อน' };
+  }
+
+  const response = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      chat_id: chatId,
+      text
+    })
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || payload.ok === false) {
+    return { status: 'error', message: payload.description || 'ส่ง Telegram ไม่สำเร็จ' };
+  }
+  return { status: 'success' };
+}
+
+async function sendLineBroadcast(lineToken, text) {
+  if (!lineToken) {
+    return { status: 'error', message: 'ตั้งค่า LINE channel access token ก่อน' };
+  }
+
+  const response = await fetch('https://api.line.me/v2/bot/message/broadcast', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      authorization: `Bearer ${lineToken}`
+    },
+    body: JSON.stringify({
+      messages: [{ type: 'text', text: text.slice(0, 5000) }]
+    })
+  });
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    return { status: 'error', message: payload.message || 'ส่ง LINE ไม่สำเร็จ' };
+  }
+  return { status: 'success' };
+}
+
+export async function runNotificationDispatch(options = {}) {
+  const config = configOut(await readConfig(), true);
+  const notification = config.notification || {};
+
+  if (!options.force && !notification.enabled) {
+    return { status: 'success', skipped: true, message: 'ปิดการแจ้งเตือนอยู่' };
+  }
+
+  const dashboard = await apiGetDashboard();
+  if (dashboard.status !== 'success') {
+    return dashboard;
+  }
+
+  const text = options.text || buildNotificationMessage({
+    hospitalName: config.hospital_name,
+    near: dashboard.near || [],
+    low: dashboard.low_stock || [],
+    test: !!options.test
+  });
+
+  const result = notification.channel === 'line'
+    ? await sendLineBroadcast(notification.line_token, text)
+    : await sendTelegramMessage(notification.telegram_bot_token, notification.telegram_chat_id, text);
+
+  if (result.status !== 'success') {
+    return result;
+  }
+
+  return {
+    status: 'success',
+    message: options.test ? 'ส่งข้อความทดสอบแล้ว' : 'ส่งการแจ้งเตือนแล้ว',
+    text
+  };
+}
+
 async function apiTestNotification() {
-  return { status: 'error', message: 'โหมด PostgreSQL local ยังไม่ได้ตั้ง worker สำหรับส่ง Telegram/LINE' };
+  return runNotificationDispatch({ force: true, test: true });
 }
 
 async function apiChangePassword(p, user) {
@@ -839,209 +804,4 @@ async function apiGetLowStock() {
       image_url: d.image_file_id ? fileUrl(d.image_file_id) : ''
     }))
   };
-}
-
-function itemSelectSql(where) {
-  return `SELECT i.*, d.code_id AS drug_code_id, d.name AS drug_name, d.image_file_id,
-                 l.code_id AS location_code_id, l.name AS location_name,
-                 lt.code_id AS last_transaction_code_id
-          FROM items i
-          JOIN drugs d ON d.id = i.drug_id
-          JOIN locations l ON l.id = i.location_id
-          LEFT JOIN transactions lt ON lt.id = i.last_transaction_id
-          WHERE ${where}`;
-}
-
-function transactionSelectSql(where, limit, direction = 'DESC') {
-  return `SELECT t.*, i.code_id AS item_code_id, d.code_id AS drug_code_id, d.name AS drug_name,
-                 fl.code_id AS from_location_code_id, fl.name AS from_location_name,
-                 tl.code_id AS to_location_code_id, tl.name AS to_location_name
-          FROM transactions t
-          LEFT JOIN items i ON i.id = t.item_id
-          LEFT JOIN drugs d ON d.id = t.drug_id
-          LEFT JOIN locations fl ON fl.id = t.from_location_id
-          LEFT JOIN locations tl ON tl.id = t.to_location_id
-          WHERE ${where}
-          ORDER BY t.created_at ${direction}
-          LIMIT ${Number(limit) || 60}`;
-}
-
-function mapLocation(l) {
-  return {
-    id: l.code_id,
-    name: l.name,
-    icon: l.icon,
-    color: l.color,
-    is_default_receive: !!l.is_default_receive,
-    sort_order: Number(l.sort_order || 0),
-    active: l.active !== false,
-    created_at: toIso(l.created_at),
-    updated_at: toIso(l.updated_at)
-  };
-}
-
-function mapDrug(d) {
-  return {
-    id: d.code_id,
-    name: d.name,
-    code: d.code || '',
-    unit: d.unit || '',
-    require_lot: !!d.require_lot,
-    default_location_id: d.default_location_code_id || '',
-    image_file_id: d.image_file_id || '',
-    image_url: d.image_file_id ? fileUrl(d.image_file_id) : '',
-    min_qty: Number(d.min_qty || 0),
-    active: d.active !== false,
-    created_at: toIso(d.created_at),
-    updated_at: toIso(d.updated_at)
-  };
-}
-
-function mapItem(it) {
-  return {
-    id: it.code_id,
-    drug_id: it.drug_code_id || '',
-    drug_name: it.drug_name,
-    image_url: it.image_file_id ? fileUrl(it.image_file_id) : '',
-    location_id: it.location_code_id || '',
-    location_name: it.location_name,
-    lot_no: it.lot_no || '',
-    expiry_date: dateOnly(it.expiry_date),
-    qty: Number(it.qty || 0),
-    days: daysTo(it.expiry_date),
-    status: it.status,
-    closed_at: toIso(it.closed_at),
-    closed_reason: it.closed_reason || '',
-    last_transaction_id: it.last_transaction_code_id || '',
-    received_by: it.received_by || '',
-    received_at: toIso(it.received_at),
-    note: it.note || '',
-    created_at: toIso(it.created_at),
-    updated_at: toIso(it.updated_at)
-  };
-}
-
-async function mapItemWithNames(it, client = pool) {
-  const { rows } = await client.query(itemSelectSql('i.id = $1'), [it.id]);
-  return rows[0] ? mapItem(rows[0]) : mapItem({ ...it, drug_name: '', location_name: '' });
-}
-
-function mapTransaction(t) {
-  return {
-    id: t.code_id,
-    type: t.type,
-    item_id: t.item_code_id || '',
-    drug_id: t.drug_code_id || '',
-    drug_name: t.drug_name || '',
-    from_location_id: t.from_location_code_id || '',
-    from_location_name: t.from_location_name || '',
-    to_location_id: t.to_location_code_id || '',
-    to_location_name: t.to_location_name || '',
-    qty: Number(t.qty || 0),
-    lot_no: t.lot_no || '',
-    expiry_date: dateOnly(t.expiry_date),
-    reason: t.reason || '',
-    note: t.note || '',
-    by: t.by_username || '',
-    created_at: toIso(t.created_at)
-  };
-}
-
-async function resolveCodeId(table, codeId, client = pool) {
-  if (!codeId) return null;
-  const allowed = new Set(['locations', 'drugs', 'items', 'app_users']);
-  if (!allowed.has(table)) throw new Error(`Unsupported code_id table: ${table}`);
-  const { rows } = await client.query(`SELECT id FROM ${table} WHERE code_id = $1`, [codeId]);
-  return rows[0]?.id || null;
-}
-
-async function saveUpload(base64, filename = '', prefix = 'file') {
-  if (!base64) throw new Error('ไม่พบไฟล์รูป');
-  const match = String(base64).match(/^data:(.+?);base64,(.+)$/);
-  const body = match ? match[2] : String(base64);
-  const mime = match?.[1] || '';
-  const ext = extensionFor(filename, mime);
-  const id = `${prefix}_${Date.now()}_${Math.random().toString(16).slice(2)}${ext}`;
-  const bytes = Buffer.from(body, 'base64');
-
-  if (supabaseAdmin) {
-    const bucket = prefix === 'logo' ? 'branding' : 'drug-images';
-    const objectPath = `${prefix}/${id}`;
-    const { error } = await supabaseAdmin.storage
-      .from(bucket)
-      .upload(objectPath, bytes, { contentType: mime || mimeForExt(ext), upsert: false });
-    if (error) throw new Error(error.message);
-    const { data } = supabaseAdmin.storage.from(bucket).getPublicUrl(objectPath);
-    return { id: data.publicUrl };
-  }
-
-  await fs.mkdir(uploadDir, { recursive: true });
-  await fs.writeFile(path.join(uploadDir, id), bytes);
-  return { id };
-}
-
-function extensionFor(filename, mime) {
-  const ext = path.extname(String(filename || '')).toLowerCase();
-  if (['.png', '.jpg', '.jpeg', '.webp', '.svg'].includes(ext)) return ext;
-  if (mime === 'image/jpeg') return '.jpg';
-  if (mime === 'image/webp') return '.webp';
-  if (mime === 'image/svg+xml') return '.svg';
-  return '.png';
-}
-
-function mimeForExt(ext) {
-  if (ext === '.jpg' || ext === '.jpeg') return 'image/jpeg';
-  if (ext === '.webp') return 'image/webp';
-  if (ext === '.svg') return 'image/svg+xml';
-  return 'image/png';
-}
-
-function fileUrl(id) {
-  if (!id) return '';
-  if (/^https?:\/\//.test(id)) return id;
-  return `${PUBLIC_BASE_URL}/uploads/${encodeURIComponent(id)}`;
-}
-
-function daysTo(value) {
-  const exp = new Date(`${dateOnly(value)}T00:00:00Z`);
-  const nowDate = new Date();
-  const today = new Date(Date.UTC(nowDate.getFullYear(), nowDate.getMonth(), nowDate.getDate()));
-  return Math.round((exp.getTime() - today.getTime()) / 86400000);
-}
-
-function dateOnly(value) {
-  if (!value) return '';
-  if (typeof value === 'string') return value.slice(0, 10);
-  return value.toISOString().slice(0, 10);
-}
-
-function toIso(value) {
-  if (!value) return '';
-  if (typeof value === 'string') return value;
-  return value.toISOString();
-}
-
-function exportName(kind, from, to) {
-  const nameMap = { receive: 'รับเข้า', stock: 'สต็อกคงเหลือ', all: 'การเคลื่อนไหว' };
-  return `TheWatcher_${nameMap[kind] || kind}${from ? `_${from}` : ''}${to && to !== from ? `_ถึง_${to}` : ''}.xlsx`;
-}
-
-function now() {
-  return new Date().toISOString();
-}
-
-async function logError(whereName, err) {
-  try {
-    await pool.query(
-      'INSERT INTO errors (where_name, message, stack) VALUES ($1, $2, $3)',
-      [whereName, String(err?.message || err), String(err?.stack || '')]
-    );
-  } catch {
-    // Avoid recursive failures while reporting errors.
-  }
-}
-
-async function rollbackResult(client, result) {
-  await client.query('ROLLBACK');
-  return result;
 }
