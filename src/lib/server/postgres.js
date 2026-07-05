@@ -8,13 +8,14 @@ const { Pool } = pg;
 
 function supabaseDirectConnectionString() {
   if (process.env.SUPABASE_DIRECT_DATABASE_URL) return process.env.SUPABASE_DIRECT_DATABASE_URL;
-  if (!process.env.SUPABASE_DB_PASSWORD) return '';
+  const password = process.env.SUPABASE_DB_PASSWORD || process.env.POSTGRES_PASSWORD || '';
+  if (!password) return '';
 
   const host = process.env.SUPABASE_DB_HOST || 'db.qvbqoxfuqzzffryqkuva.supabase.co';
   const port = process.env.SUPABASE_DB_PORT || '5432';
   const database = process.env.SUPABASE_DB_NAME || 'postgres';
   const user = process.env.SUPABASE_DB_USER || 'postgres';
-  const encodedPassword = encodeURIComponent(process.env.SUPABASE_DB_PASSWORD);
+  const encodedPassword = encodeURIComponent(password);
 
   return `postgresql://${user}:${encodedPassword}@${host}:${port}/${database}`;
 }
