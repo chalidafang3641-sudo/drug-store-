@@ -12,6 +12,7 @@
     "legacy:reconcile": "node scripts/reconcile-legacy-import.mjs",
     "storage:setup": "node scripts/setup-supabase-storage.mjs",
     "storage:buckets": "node scripts/setup-supabase-storage.mjs --buckets-only",
+    "db:keepalive": "node scripts/supabase-keepalive.mjs",
     "smoke:write": "node scripts/smoke-write-workflows.mjs",
     "smoke:ui": "node scripts/smoke-legacy-ui.mjs",
     "start": "node server/index.js",
@@ -20,7 +21,11 @@
     "build": "vite build",
     "preview": "vite preview",
     "check": "node --check server/index.js",
-    "check:svelte": "svelte-kit sync && svelte-check --tsconfig ./jsconfig.json"
+    "check:svelte": "svelte-kit sync && svelte-check --tsconfig ./jsconfig.json",
+    "docker:db:up": "docker compose up -d postgres",
+    "docker:db:down": "docker compose down",
+    "docker:db:logs": "docker compose logs -f postgres",
+    "docker:db:reset": "docker compose down -v && docker compose up -d postgres"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.0",

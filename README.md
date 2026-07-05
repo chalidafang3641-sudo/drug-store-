@@ -22,6 +22,49 @@ Frontend: GitHub Pages (กล้องสแกนได้) · Backend: Google
 
 ใช้เอกสารนี้เป็น source of truth สำหรับการย้ายระบบไป SvelteKit + Supabase โดยครอบคลุม workflow, role/permission, API contract, data model, validation, business rules และ gap ที่ต้องทำต่อ
 
+## Feature / Flow Summary
+
+สรุป feature และ workflow ปัจจุบันแบบอ่านเร็วอยู่ที่ [`docs/feature-flow.md`](docs/feature-flow.md)
+
+ไฟล์นี้เหมาะสำหรับดูภาพรวม flow การใช้งานจริง เช่น login, dashboard, รับเข้า, stock ตามสถานที่, ย้ายยา, ตัดจ่าย, ตรวจนับ, settings, export/report และ notification โดยไม่ต้องอ่าน requirement ทั้งหมด
+
+## Local Docker Database
+
+รัน PostgreSQL สำหรับ development ด้วย Docker ได้จาก [`docker-compose.yml`](docker-compose.yml)
+
+```bash
+npm run docker:db:up
+```
+
+ค่า connection สำหรับ `.env.local`:
+
+```env
+DATABASE_URL=postgres://drugstore:drugstore_dev@localhost:5433/the_watcher
+```
+
+รายละเอียดการใช้งานและข้อควรระวังเรื่อง backup/data จริงอยู่ที่ [`docs/local-docker-db.md`](docs/local-docker-db.md)
+
+## Supabase Keepalive บน Vercel
+
+โปรเจกต์มี Vercel Cron Job ใน [`vercel.json`](vercel.json) สำหรับเรียก endpoint `GET /api/cron/supabase-keepalive` ทุก 3 วัน เพื่อ ping database ด้วย read-only query `select now()` โดยไม่แก้ข้อมูลธุรกิจ
+
+ต้องตั้ง Environment Variables ใน Vercel:
+
+```env
+DATABASE_URL=postgres://...
+CRON_SECRET=สุ่มรหัสยาวอย่างน้อย 16 ตัวอักษร
+```
+
+Vercel จะส่ง `CRON_SECRET` มากับ header `Authorization: Bearer ...` ให้อัตโนมัติเมื่อเรียก Cron Job ถ้าไม่ได้ตั้ง secret endpoint จะตอบ `401`
+
+ทดสอบ connection จากเครื่อง local ได้ด้วย:
+
+```bash
+npm run db:keepalive
+```
+
+หมายเหตุ: script นี้ช่วยให้ project มี database activity เป็นระยะ แต่ถ้า Supabase project ถูก pause/inactive ไปแล้ว ต้อง restore/unpause จาก Supabase Dashboard ก่อน และวิธีที่รับประกันว่า Free project จะไม่ถูก pause คือย้าย organization เป็น paid plan
+
 ## Legacy Data & Assets
 
 ดึงข้อมูลจาก API เดิมมาเก็บ snapshot local:

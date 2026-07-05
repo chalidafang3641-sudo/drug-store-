@@ -7,3 +7,4 @@ legacy-exports/
 output/
 .tmp/
 .DS_Store
+.vercel
