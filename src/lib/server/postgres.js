@@ -17,8 +17,12 @@ connectionUrl.searchParams.delete('sslmode');
 
 const connectionString = connectionUrl.toString();
 const isLocalConnection = ['localhost', '127.0.0.1', '::1'].includes(connectionUrl.hostname);
+const poolMax = Number(process.env.PGPOOL_MAX || (isLocalConnection ? 10 : 1));
 
 export const pool = new Pool({
   connectionString,
-  ssl: isLocalConnection ? false : { rejectUnauthorized: false }
+  ssl: isLocalConnection ? false : { rejectUnauthorized: false },
+  max: Number.isFinite(poolMax) && poolMax > 0 ? poolMax : 1,
+  idleTimeoutMillis: 10_000,
+  connectionTimeoutMillis: 5_000
 });
