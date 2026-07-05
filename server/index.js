@@ -332,37 +332,61 @@ async function apiReceiveItem(p, user) {
 
 async function apiGetDashboard() {
   const c = await readConfig();
-  const { rows } = await pool.query(itemSelectSql("i.status = 'active' AND i.qty > 0"));
-  const summary = { within35: 0, within60: 0, within120: 0, over120: 0, expired: 0, total_items: 0, total_qty: 0 };
-  const near = [];
-  const byLocMap = new Map();
-  for (const row of rows) {
-    const days = daysTo(row.expiry_date);
-    const qty = Number(row.qty || 0);
-    summary.total_items += 1;
-    summary.total_qty += qty;
-    if (days < 0) summary.expired += 1;
-    if (days <= c.expiry_critical_days) summary.within35 += 1;
-    else if (days <= c.expiry_high_days) summary.within60 += 1;
-    else if (days <= c.expiry_medium_days) summary.within120 += 1;
-    else summary.over120 += 1;
-    if (days <= c.expiry_medium_days) {
-      const item = mapItem(row);
-      near.push(item);
-      const key = item.location_id || '_';
-      const cur = byLocMap.get(key) || { location_id: item.location_id, location_name: item.location_name, count: 0, qty: 0 };
-      cur.count += 1;
-      cur.qty += qty;
-      byLocMap.set(key, cur);
-    }
-  }
-  near.sort((a, b) => a.days - b.days);
-  const lowStock = await apiGetLowStock();
+  const baseWhere = "i.status = 'active' AND i.qty > 0";
+  const [summaryResult, nearResult, byLocationResult, lowStock] = await Promise.all([
+    pool.query(
+      `SELECT
+         COUNT(*)::int AS total_items,
+         COALESCE(SUM(i.qty), 0)::int AS total_qty,
+         COUNT(*) FILTER (WHERE i.expiry_date::date - CURRENT_DATE < 0)::int AS expired,
+         COUNT(*) FILTER (WHERE i.expiry_date::date - CURRENT_DATE <= $1)::int AS within35,
+         COUNT(*) FILTER (WHERE i.expiry_date::date - CURRENT_DATE > $1 AND i.expiry_date::date - CURRENT_DATE <= $2)::int AS within60,
+         COUNT(*) FILTER (WHERE i.expiry_date::date - CURRENT_DATE > $2 AND i.expiry_date::date - CURRENT_DATE <= $3)::int AS within120,
+         COUNT(*) FILTER (WHERE i.expiry_date::date - CURRENT_DATE > $3)::int AS over120
+       FROM items i
+       WHERE ${baseWhere}`,
+      [c.expiry_critical_days, c.expiry_high_days, c.expiry_medium_days]
+    ),
+    pool.query(
+      `${itemSelectSql(`${baseWhere} AND i.expiry_date::date - CURRENT_DATE <= $1`)}
+       ORDER BY i.expiry_date ASC, d.name ASC
+       LIMIT 100`,
+      [c.expiry_medium_days]
+    ),
+    pool.query(
+      `SELECT l.code_id AS location_id,
+              l.name AS location_name,
+              COUNT(*)::int AS count,
+              COALESCE(SUM(i.qty), 0)::int AS qty
+       FROM items i
+       JOIN locations l ON l.id = i.location_id
+       WHERE ${baseWhere}
+         AND i.expiry_date::date - CURRENT_DATE <= $1
+       GROUP BY l.code_id, l.name
+       ORDER BY COUNT(*) DESC`,
+      [c.expiry_medium_days]
+    ),
+    apiGetLowStock()
+  ]);
+  const summary = {
+    within35: Number(summaryResult.rows[0]?.within35 || 0),
+    within60: Number(summaryResult.rows[0]?.within60 || 0),
+    within120: Number(summaryResult.rows[0]?.within120 || 0),
+    over120: Number(summaryResult.rows[0]?.over120 || 0),
+    expired: Number(summaryResult.rows[0]?.expired || 0),
+    total_items: Number(summaryResult.rows[0]?.total_items || 0),
+    total_qty: Number(summaryResult.rows[0]?.total_qty || 0)
+  };
   return {
     status: 'success',
     summary,
-    near: near.slice(0, 100),
-    by_location: [...byLocMap.values()].sort((a, b) => b.count - a.count),
+    near: nearResult.rows.map(mapItem),
+    by_location: byLocationResult.rows.map((row) => ({
+      location_id: row.location_id,
+      location_name: row.location_name,
+      count: Number(row.count || 0),
+      qty: Number(row.qty || 0)
+    })),
     thresholds: { critical: c.expiry_critical_days, high: c.expiry_high_days, medium: c.expiry_medium_days },
     low_stock: lowStock.data
   };

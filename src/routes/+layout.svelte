@@ -85,11 +85,26 @@
     }
   }
 
+  let showLoadingOverlay = false;
+  let loadingTimer;
+
+  $: if (browser) {
+    clearTimeout(loadingTimer);
+    if ($navigating) {
+      loadingTimer = window.setTimeout(() => {
+        showLoadingOverlay = true;
+      }, 450);
+    } else {
+      showLoadingOverlay = false;
+    }
+  }
+
   onDestroy(() => {
     for (const timer of toastTimers.values()) {
       clearTimeout(timer);
     }
     toastTimers.clear();
+    clearTimeout(loadingTimer);
   });
 </script>
 
@@ -123,7 +138,7 @@
       {/each}
     </div>
 
-    <div id="loadingOverlay" class:show={!!$navigating} aria-live="polite" aria-hidden={!$navigating}>
+    <div id="loadingOverlay" class:show={showLoadingOverlay} aria-live="polite" aria-hidden={!showLoadingOverlay}>
       <div class="lo-card">
         <span class="spin spin-brand"></span>
         <div class="lo-text">กำลังโหลด</div>
