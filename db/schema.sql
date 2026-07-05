@@ -176,6 +176,11 @@ CREATE INDEX IF NOT EXISTS items_active_location_expiry_idx
   INCLUDE (drug_id, lot_no, qty)
   WHERE status = 'active' AND qty > 0;
 
+CREATE INDEX IF NOT EXISTS items_active_location_qty_idx
+  ON items (location_id)
+  INCLUDE (qty)
+  WHERE status = 'active' AND qty > 0;
+
 CREATE INDEX IF NOT EXISTS items_active_drug_qty_idx
   ON items (drug_id)
   INCLUDE (qty)
@@ -245,6 +250,10 @@ CREATE UNIQUE INDEX IF NOT EXISTS app_users_username_lower_unique
 CREATE INDEX IF NOT EXISTS app_users_active_role_idx
   ON app_users (active, role);
 
+CREATE INDEX IF NOT EXISTS app_users_login_cover_idx
+  ON app_users (username)
+  INCLUDE (password_hash, active, role, name, permissions, code_id);
+
 CREATE TABLE IF NOT EXISTS sessions (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   code_id TEXT NOT NULL UNIQUE DEFAULT make_code_id('sess'),
@@ -255,6 +264,9 @@ CREATE TABLE IF NOT EXISTS sessions (
 
 CREATE INDEX IF NOT EXISTS sessions_expires_at_idx ON sessions (expires_at);
 CREATE INDEX IF NOT EXISTS sessions_user_id_idx ON sessions (user_id);
+CREATE INDEX IF NOT EXISTS sessions_code_expires_user_idx
+  ON sessions (code_id, expires_at)
+  INCLUDE (user_id);
 
 CREATE TABLE IF NOT EXISTS errors (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,

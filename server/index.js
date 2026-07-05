@@ -339,17 +339,17 @@ async function apiGetDashboard() {
       `SELECT
          COUNT(*)::int AS total_items,
          COALESCE(SUM(i.qty), 0)::int AS total_qty,
-         COUNT(*) FILTER (WHERE i.expiry_date::date - CURRENT_DATE < 0)::int AS expired,
-         COUNT(*) FILTER (WHERE i.expiry_date::date - CURRENT_DATE <= $1)::int AS within35,
-         COUNT(*) FILTER (WHERE i.expiry_date::date - CURRENT_DATE > $1 AND i.expiry_date::date - CURRENT_DATE <= $2)::int AS within60,
-         COUNT(*) FILTER (WHERE i.expiry_date::date - CURRENT_DATE > $2 AND i.expiry_date::date - CURRENT_DATE <= $3)::int AS within120,
-         COUNT(*) FILTER (WHERE i.expiry_date::date - CURRENT_DATE > $3)::int AS over120
+         COUNT(*) FILTER (WHERE i.expiry_date < CURRENT_DATE)::int AS expired,
+         COUNT(*) FILTER (WHERE i.expiry_date <= CURRENT_DATE + $1::int)::int AS within35,
+         COUNT(*) FILTER (WHERE i.expiry_date > CURRENT_DATE + $1::int AND i.expiry_date <= CURRENT_DATE + $2::int)::int AS within60,
+         COUNT(*) FILTER (WHERE i.expiry_date > CURRENT_DATE + $2::int AND i.expiry_date <= CURRENT_DATE + $3::int)::int AS within120,
+         COUNT(*) FILTER (WHERE i.expiry_date > CURRENT_DATE + $3::int)::int AS over120
        FROM items i
        WHERE ${baseWhere}`,
       [c.expiry_critical_days, c.expiry_high_days, c.expiry_medium_days]
     );
     const nearResult = await client.query(
-      `${itemSelectSql(`${baseWhere} AND i.expiry_date::date - CURRENT_DATE <= $1`)}
+      `${itemSelectSql(`${baseWhere} AND i.expiry_date <= CURRENT_DATE + $1::int`)}
        ORDER BY i.expiry_date ASC, d.name ASC
        LIMIT 100`,
       [c.expiry_medium_days]
@@ -362,7 +362,7 @@ async function apiGetDashboard() {
        FROM items i
        JOIN locations l ON l.id = i.location_id
        WHERE ${baseWhere}
-         AND i.expiry_date::date - CURRENT_DATE <= $1
+         AND i.expiry_date <= CURRENT_DATE + $1::int
        GROUP BY l.code_id, l.name
        ORDER BY COUNT(*) DESC`,
       [c.expiry_medium_days]
@@ -399,10 +399,12 @@ async function apiSearchItems(query) {
   const q = `%${String(query || '').trim().toLowerCase()}%`;
   if (q === '%%') return { status: 'success', data: [] };
   const { rows } = await pool.query(
-    itemSelectSql("i.status = 'active' AND i.qty > 0 AND (LOWER(d.name) LIKE $1 OR LOWER(l.name) LIKE $1 OR LOWER(i.lot_no) LIKE $1)"),
+    `${itemSelectSql("i.status = 'active' AND i.qty > 0 AND (LOWER(d.name) LIKE $1 OR LOWER(l.name) LIKE $1 OR LOWER(i.lot_no) LIKE $1)")}
+     ORDER BY i.expiry_date ASC, d.name ASC
+     LIMIT 100`,
     [q]
   );
-  return { status: 'success', data: rows.map(mapItem).sort((a, b) => a.days - b.days).slice(0, 100) };
+  return { status: 'success', data: rows.map(mapItem) };
 }
 
 async function apiGetLocationStock() {
@@ -427,8 +429,12 @@ async function apiGetLocationItems(locationId) {
     params.push(locationId);
     where += ` AND l.code_id = $${params.length}`;
   }
-  const { rows } = await pool.query(itemSelectSql(where), params);
-  return { status: 'success', data: rows.map(mapItem).sort((a, b) => a.days - b.days) };
+  const { rows } = await pool.query(
+    `${itemSelectSql(where)}
+     ORDER BY i.expiry_date ASC, d.name ASC`,
+    params
+  );
+  return { status: 'success', data: rows.map(mapItem) };
 }
 
 async function apiExchangeItem(p, user) {
@@ -811,14 +817,14 @@ async function apiDeleteUser(id, actor) {
 async function apiGetLowStock(client = pool) {
   const { rows } = await client.query(
     `SELECT d.id AS drug_id, d.code_id AS drug_code_id, d.name, d.unit, d.min_qty,
-            COALESCE(SUM(i.qty) FILTER (WHERE i.status = 'active'), 0)::int AS total,
+            COALESCE(SUM(i.qty), 0)::int AS total,
             d.image_file_id
      FROM drugs d
-     LEFT JOIN items i ON i.drug_id = d.id
+     LEFT JOIN items i ON i.drug_id = d.id AND i.status = 'active' AND i.qty > 0
      WHERE d.active AND d.min_qty > 0
      GROUP BY d.id
-     HAVING COALESCE(SUM(i.qty) FILTER (WHERE i.status = 'active'), 0) < d.min_qty
-     ORDER BY (COALESCE(SUM(i.qty) FILTER (WHERE i.status = 'active'), 0) - d.min_qty)`
+     HAVING COALESCE(SUM(i.qty), 0) < d.min_qty
+     ORDER BY (COALESCE(SUM(i.qty), 0) - d.min_qty)`
   );
   return {
     status: 'success',
