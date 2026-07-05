@@ -40,6 +40,17 @@ const TAB_PERMISSIONS = {
   report: ['view']
 };
 
+const DEFAULT_CONFIG = {
+  hospital_name: '',
+  default_receive_location_id: '',
+  display_be: false,
+  expiry_thresholds: {
+    critical: 35,
+    high: 60,
+    medium: 120
+  }
+};
+
 async function api(action, token, params = {}) {
   return handleApiPayload({ action, token, ...params });
 }
@@ -63,19 +74,27 @@ export async function load({ locals, url }) {
   const stockAccess = hasStock(user);
   const drugAccess = hasDrug(user);
 
+  const needsLocations = ['general', 'drugs', 'locations', 'audit'].includes(tab);
+  const needsHistory = tab === 'history';
+  const needsConfig = admin && ['general', 'display', 'report'].includes(tab);
+  const needsUsers = admin && tab === 'users';
+  const needsDrugs = drugAccess && ['drugs', 'lot'].includes(tab);
+  const needsNotification = admin && tab === 'notify';
+  const needsSelectedItems = tab === 'audit' && selectedLocationId && stockAccess;
+
   const [locations, history, config, users, drugs, notification, selectedItems] = await Promise.all([
-    api('getLocations', locals.token),
-    api('getHistory', locals.token, { type: historyType, limit: 80 }),
-    admin ? api('getConfig', locals.token) : Promise.resolve({ status: 'skipped' }),
-    admin ? api('getUsers', locals.token) : Promise.resolve({ status: 'skipped', data: [] }),
-    drugAccess ? api('getDrugs', locals.token) : Promise.resolve({ status: 'skipped', data: [] }),
-    admin ? api('getNotifyConfig', locals.token) : Promise.resolve({ status: 'skipped' }),
-    selectedLocationId && stockAccess
+    needsLocations ? api('getLocations', locals.token) : Promise.resolve({ status: 'skipped', data: [] }),
+    needsHistory ? api('getHistory', locals.token, { type: historyType, limit: 80 }) : Promise.resolve({ status: 'skipped', data: [] }),
+    needsConfig ? api('getConfig', locals.token) : Promise.resolve({ status: 'skipped' }),
+    needsUsers ? api('getUsers', locals.token) : Promise.resolve({ status: 'skipped', data: [] }),
+    needsDrugs ? api('getDrugs', locals.token, { q: tab === 'drugs' ? drugSearch : '' }) : Promise.resolve({ status: 'skipped', data: [] }),
+    needsNotification ? api('getNotifyConfig', locals.token) : Promise.resolve({ status: 'skipped' }),
+    needsSelectedItems
       ? api('getLocationItems', locals.token, { location_id: selectedLocationId })
       : Promise.resolve({ status: 'skipped', data: [] })
   ]);
 
-  if (locations.status !== 'success') {
+  if (needsLocations && locations.status !== 'success') {
     redirect(303, '/login');
   }
 
@@ -114,7 +133,7 @@ export async function load({ locals, url }) {
     selectedUser,
     selectedItems: selectedItems.status === 'success' ? selectedItems.data || [] : [],
     history: history.status === 'success' ? history.data || [] : [],
-    config: config.status === 'success' ? config.config : null,
+    config: config.status === 'success' ? config.config : DEFAULT_CONFIG,
     notification: notification.status === 'success' ? notification.notification : null,
     users: userList
   };

@@ -77,7 +77,7 @@ async function route(action, p) {
     case 'deleteLocation': return guard(p, ['drug'], () => apiDeleteLocation(p.id));
     case 'reorderLocations': return guard(p, ['drug'], () => apiReorderLocations(p.ids));
     case 'setDefaultReceive': return guard(p, ['drug'], () => apiSetDefaultReceive(p.id));
-    case 'getDrugs': return guard(p, ['view'], apiGetDrugs);
+    case 'getDrugs': return guard(p, ['view'], () => apiGetDrugs(p));
     case 'saveDrug': return guard(p, ['drug'], () => apiSaveDrug(p.drug));
     case 'deleteDrug': return guard(p, ['drug'], () => apiDeleteDrug(p.id));
     case 'setRequireLot': return guard(p, ['drug'], () => apiSetRequireLot(p.id, p.value));
@@ -206,14 +206,22 @@ async function apiSetDefaultReceive(id) {
   }
 }
 
-async function apiGetDrugs() {
+async function apiGetDrugs(p = {}) {
+  const q = String(p.q || '').trim().toLowerCase();
+  const params = [];
+  let where = 'd.active';
+  if (q) {
+    params.push(`%${q}%`);
+    where += ` AND (lower(d.name) LIKE $${params.length} OR lower(d.code) LIKE $${params.length})`;
+  }
   const { rows } = await pool.query(
     `SELECT d.id, d.code_id, d.name, d.code, d.unit, d.require_lot, d.default_location_id,
             dl.code_id AS default_location_code_id, d.image_file_id, d.min_qty, d.active, d.created_at, d.updated_at
      FROM drugs d
      LEFT JOIN locations dl ON dl.id = d.default_location_id
-     WHERE d.active
-     ORDER BY d.name`
+     WHERE ${where}
+     ORDER BY d.name`,
+    params
   );
   return { status: 'success', data: rows.map(mapDrug) };
 }

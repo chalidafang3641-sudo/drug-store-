@@ -131,6 +131,10 @@ CREATE INDEX IF NOT EXISTS drugs_name_trgm_idx
   ON drugs USING GIN (lower(name) gin_trgm_ops)
   WHERE active;
 
+CREATE INDEX IF NOT EXISTS drugs_code_trgm_idx
+  ON drugs USING GIN (lower(code) gin_trgm_ops)
+  WHERE active AND code <> '';
+
 CREATE INDEX IF NOT EXISTS drugs_default_location_idx
   ON drugs (default_location_id)
   WHERE default_location_id IS NOT NULL;
