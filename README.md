@@ -51,11 +51,13 @@ DATABASE_URL=postgres://drugstore:drugstore_dev@localhost:5433/the_watcher
 ต้องตั้ง Environment Variables ใน Vercel:
 
 ```env
-DATABASE_URL=postgres://...
+DRUGSTORE_DATABASE_URL=postgresql://postgres.qvbqoxfuqzzffryqkuva:<DB_PASSWORD>@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require
 CRON_SECRET=สุ่มรหัสยาวอย่างน้อย 16 ตัวอักษร
 ```
 
-ถ้า production เจอ Supabase pooler/session connection limit ให้ใช้ direct connection แทน pooler โดยตั้งค่าใน Vercel:
+บน Vercel ให้ใช้ `DRUGSTORE_DATABASE_URL` เป็นหลัก เพราะเป็น key เฉพาะของระบบนี้และใช้ Supabase Shared Pooler ที่รองรับ IPv4 ได้ดีใน Vercel. โค้ดจะเลือก `DRUGSTORE_DATABASE_URL` ก่อน `POSTGRES_PRISMA_URL`, `POSTGRES_URL`, `POSTGRES_URL_NON_POOLING`, และ `DATABASE_URL`.
+
+Direct connection ใช้ได้กับเครื่อง local หรือ runtime ที่รองรับ IPv6 โดยตั้งค่า:
 
 ```env
 SUPABASE_DIRECT_DATABASE_URL=postgresql://postgres:<DB_PASSWORD>@db.qvbqoxfuqzzffryqkuva.supabase.co:5432/postgres
@@ -71,7 +73,7 @@ SUPABASE_DB_USER=postgres
 SUPABASE_DB_PASSWORD=<DB_PASSWORD>
 ```
 
-เมื่อมี `SUPABASE_DIRECT_DATABASE_URL` หรือ `SUPABASE_DB_PASSWORD` ระบบจะเลือก direct connection ก่อน `POSTGRES_URL_NON_POOLING`, `POSTGRES_URL`, `POSTGRES_PRISMA_URL`, และ `DATABASE_URL`
+บน Vercel ระบบจะไม่ใช้ direct fallback จาก `SUPABASE_DB_PASSWORD` อัตโนมัติ เพื่อป้องกันการชนกับ env ของ production
 
 Vercel จะส่ง `CRON_SECRET` มากับ header `Authorization: Bearer ...` ให้อัตโนมัติเมื่อเรียก Cron Job ถ้าไม่ได้ตั้ง secret endpoint จะตอบ `401`
 
