@@ -71,8 +71,6 @@ SUPABASE_DB_USER=postgres
 SUPABASE_DB_PASSWORD=<DB_PASSWORD>
 ```
 
-ถ้า Vercel มี `POSTGRES_PASSWORD` อยู่แล้ว ระบบจะใช้ค่านี้เป็น fallback สำหรับ direct connection โดยไม่ต้องตั้ง `SUPABASE_DB_PASSWORD` ซ้ำ
-
 เมื่อมี `SUPABASE_DIRECT_DATABASE_URL` หรือ `SUPABASE_DB_PASSWORD` ระบบจะเลือก direct connection ก่อน `POSTGRES_URL_NON_POOLING`, `POSTGRES_URL`, `POSTGRES_PRISMA_URL`, และ `DATABASE_URL`
 
 Vercel จะส่ง `CRON_SECRET` มากับ header `Authorization: Bearer ...` ให้อัตโนมัติเมื่อเรียก Cron Job ถ้าไม่ได้ตั้ง secret endpoint จะตอบ `401`

@@ -8,7 +8,7 @@ const { Pool } = pg;
 
 function supabaseDirectConnectionString() {
   if (process.env.SUPABASE_DIRECT_DATABASE_URL) return process.env.SUPABASE_DIRECT_DATABASE_URL;
-  const password = process.env.SUPABASE_DB_PASSWORD || process.env.POSTGRES_PASSWORD || '';
+  const password = process.env.SUPABASE_DB_PASSWORD || '';
   if (!password) return '';
 
   const host = process.env.SUPABASE_DB_HOST || 'db.qvbqoxfuqzzffryqkuva.supabase.co';
