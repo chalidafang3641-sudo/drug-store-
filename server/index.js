@@ -333,8 +333,9 @@ async function apiReceiveItem(p, user) {
 async function apiGetDashboard() {
   const c = await readConfig();
   const baseWhere = "i.status = 'active' AND i.qty > 0";
-  const [summaryResult, nearResult, byLocationResult, lowStock] = await Promise.all([
-    pool.query(
+  const client = await pool.connect();
+  try {
+    const summaryResult = await client.query(
       `SELECT
          COUNT(*)::int AS total_items,
          COALESCE(SUM(i.qty), 0)::int AS total_qty,
@@ -346,14 +347,14 @@ async function apiGetDashboard() {
        FROM items i
        WHERE ${baseWhere}`,
       [c.expiry_critical_days, c.expiry_high_days, c.expiry_medium_days]
-    ),
-    pool.query(
+    );
+    const nearResult = await client.query(
       `${itemSelectSql(`${baseWhere} AND i.expiry_date::date - CURRENT_DATE <= $1`)}
        ORDER BY i.expiry_date ASC, d.name ASC
        LIMIT 100`,
       [c.expiry_medium_days]
-    ),
-    pool.query(
+    );
+    const byLocationResult = await client.query(
       `SELECT l.code_id AS location_id,
               l.name AS location_name,
               COUNT(*)::int AS count,
@@ -365,31 +366,33 @@ async function apiGetDashboard() {
        GROUP BY l.code_id, l.name
        ORDER BY COUNT(*) DESC`,
       [c.expiry_medium_days]
-    ),
-    apiGetLowStock()
-  ]);
-  const summary = {
-    within35: Number(summaryResult.rows[0]?.within35 || 0),
-    within60: Number(summaryResult.rows[0]?.within60 || 0),
-    within120: Number(summaryResult.rows[0]?.within120 || 0),
-    over120: Number(summaryResult.rows[0]?.over120 || 0),
-    expired: Number(summaryResult.rows[0]?.expired || 0),
-    total_items: Number(summaryResult.rows[0]?.total_items || 0),
-    total_qty: Number(summaryResult.rows[0]?.total_qty || 0)
-  };
-  return {
-    status: 'success',
-    summary,
-    near: nearResult.rows.map(mapItem),
-    by_location: byLocationResult.rows.map((row) => ({
-      location_id: row.location_id,
-      location_name: row.location_name,
-      count: Number(row.count || 0),
-      qty: Number(row.qty || 0)
-    })),
-    thresholds: { critical: c.expiry_critical_days, high: c.expiry_high_days, medium: c.expiry_medium_days },
-    low_stock: lowStock.data
-  };
+    );
+    const lowStock = await apiGetLowStock(client);
+    const summary = {
+      within35: Number(summaryResult.rows[0]?.within35 || 0),
+      within60: Number(summaryResult.rows[0]?.within60 || 0),
+      within120: Number(summaryResult.rows[0]?.within120 || 0),
+      over120: Number(summaryResult.rows[0]?.over120 || 0),
+      expired: Number(summaryResult.rows[0]?.expired || 0),
+      total_items: Number(summaryResult.rows[0]?.total_items || 0),
+      total_qty: Number(summaryResult.rows[0]?.total_qty || 0)
+    };
+    return {
+      status: 'success',
+      summary,
+      near: nearResult.rows.map(mapItem),
+      by_location: byLocationResult.rows.map((row) => ({
+        location_id: row.location_id,
+        location_name: row.location_name,
+        count: Number(row.count || 0),
+        qty: Number(row.qty || 0)
+      })),
+      thresholds: { critical: c.expiry_critical_days, high: c.expiry_high_days, medium: c.expiry_medium_days },
+      low_stock: lowStock.data
+    };
+  } finally {
+    client.release();
+  }
 }
 
 async function apiSearchItems(query) {
@@ -805,8 +808,8 @@ async function apiDeleteUser(id, actor) {
   return { status: 'success', message: 'ลบผู้ใช้แล้ว' };
 }
 
-async function apiGetLowStock() {
-  const { rows } = await pool.query(
+async function apiGetLowStock(client = pool) {
+  const { rows } = await client.query(
     `SELECT d.id AS drug_id, d.code_id AS drug_code_id, d.name, d.unit, d.min_qty,
             COALESCE(SUM(i.qty) FILTER (WHERE i.status = 'active'), 0)::int AS total,
             d.image_file_id
