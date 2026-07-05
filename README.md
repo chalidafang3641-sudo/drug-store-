@@ -55,6 +55,24 @@ DATABASE_URL=postgres://...
 CRON_SECRET=สุ่มรหัสยาวอย่างน้อย 16 ตัวอักษร
 ```
 
+ถ้า production เจอ Supabase pooler/session connection limit ให้ใช้ direct connection แทน pooler โดยตั้งค่าใน Vercel:
+
+```env
+SUPABASE_DIRECT_DATABASE_URL=postgresql://postgres:<DB_PASSWORD>@db.qvbqoxfuqzzffryqkuva.supabase.co:5432/postgres
+```
+
+หรือแยก password ออกจาก URL:
+
+```env
+SUPABASE_DB_HOST=db.qvbqoxfuqzzffryqkuva.supabase.co
+SUPABASE_DB_PORT=5432
+SUPABASE_DB_NAME=postgres
+SUPABASE_DB_USER=postgres
+SUPABASE_DB_PASSWORD=<DB_PASSWORD>
+```
+
+เมื่อมี `SUPABASE_DIRECT_DATABASE_URL` หรือ `SUPABASE_DB_PASSWORD` ระบบจะเลือก direct connection ก่อน `POSTGRES_URL_NON_POOLING`, `POSTGRES_URL`, `POSTGRES_PRISMA_URL`, และ `DATABASE_URL`
+
 Vercel จะส่ง `CRON_SECRET` มากับ header `Authorization: Bearer ...` ให้อัตโนมัติเมื่อเรียก Cron Job ถ้าไม่ได้ตั้ง secret endpoint จะตอบ `401`
 
 ทดสอบ connection จากเครื่อง local ได้ด้วย:
