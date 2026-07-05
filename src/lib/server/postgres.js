@@ -23,9 +23,9 @@ function supabaseDirectConnectionString() {
 const rawConnectionString =
   supabaseDirectConnectionString() ||
   process.env.POSTGRES_DIRECT_URL ||
-  process.env.POSTGRES_URL_NON_POOLING ||
-  process.env.POSTGRES_URL ||
   process.env.POSTGRES_PRISMA_URL ||
+  process.env.POSTGRES_URL ||
+  process.env.POSTGRES_URL_NON_POOLING ||
   process.env.DATABASE_URL ||
   'postgres://localhost:5432/the_watcher';
 const connectionUrl = new URL(rawConnectionString);
