@@ -74,7 +74,8 @@
   ];
 
   let darkMode = false;
-  let notificationChannel = data.notification?.channel || 'telegram';
+  let notificationChannel = 'telegram';
+  $: notificationChannel = data.notification?.channel || 'telegram';
   let reportType = 'near';
   let reportPending = false;
   let exportKind = form?.exportResult?.kind || 'all';
