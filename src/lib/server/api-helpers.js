@@ -1,7 +1,8 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { put } from '@vercel/blob';
 import { pool } from './postgres.js';
-import { PUBLIC_BASE_URL, supabaseAdmin, uploadDir } from './api-runtime.js';
+import { PUBLIC_BASE_URL, uploadDir } from './api-runtime.js';
 
 export function itemSelectSql(where) {
   return `SELECT i.*, d.code_id AS drug_code_id, d.name AS drug_name, d.image_file_id,
@@ -126,15 +127,21 @@ export async function saveUpload(base64, filename = '', prefix = 'file') {
   const id = `${prefix}_${Date.now()}_${Math.random().toString(16).slice(2)}${ext}`;
   const bytes = Buffer.from(body, 'base64');
 
-  if (supabaseAdmin) {
+  const blobToken = process.env.drugs_READ_WRITE_TOKEN || process.env.BLOB_READ_WRITE_TOKEN;
+  if (blobToken) {
     const bucket = prefix === 'logo' ? 'branding' : 'drug-images';
-    const objectPath = `${prefix}/${id}`;
-    const { error } = await supabaseAdmin.storage
-      .from(bucket)
-      .upload(objectPath, bytes, { contentType: mime || mimeForExt(ext), upsert: false });
-    if (error) throw new Error(error.message);
-    const { data } = supabaseAdmin.storage.from(bucket).getPublicUrl(objectPath);
-    return { id: data.publicUrl };
+    const blob = await put(`drugstore-images/${bucket}/${prefix}/${id}`, bytes, {
+      access: 'private',
+      token: blobToken,
+      contentType: mimeForExt(ext),
+      addRandomSuffix: true,
+      allowOverwrite: false
+    });
+    return { id: `/api/images/${blob.pathname.split('/').map(encodeURIComponent).join('/')}` };
+  }
+
+  if (process.env.VERCEL === '1' || process.env.VERCEL_ENV) {
+    throw new Error('ยังไม่ได้ตั้งค่า Vercel Blob สำหรับอัปโหลดรูป');
   }
 
   await fs.mkdir(uploadDir, { recursive: true });
@@ -144,6 +151,7 @@ export async function saveUpload(base64, filename = '', prefix = 'file') {
 
 export function fileUrl(id) {
   if (!id) return '';
+  if (id.startsWith('/api/images/drugstore-images/')) return id;
   if (/^https?:\/\//.test(id)) return id;
   return `${PUBLIC_BASE_URL}/uploads/${encodeURIComponent(id)}`;
 }

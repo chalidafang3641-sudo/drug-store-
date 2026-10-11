@@ -1,6 +1,8 @@
 import cors from 'cors';
 import express from 'express';
 import { pathToFileURL } from 'node:url';
+import { Readable } from 'node:stream';
+import { serveBlobImage } from '../src/lib/server/blob-storage.js';
 import {
   dateOnly,
   daysTo,
@@ -30,6 +32,18 @@ app.use(cors());
 app.use(express.text({ type: '*/*', limit: '12mb' }));
 app.use('/uploads', express.static(uploadDir));
 app.use(express.static(rootDir));
+
+app.get('/api/images/*imagePath', async (req, res, next) => {
+  try {
+    const response = await serveBlobImage(req.params.imagePath.join('/'));
+    res.status(response.status);
+    response.headers.forEach((value, key) => res.setHeader(key, value));
+    if (response.body) Readable.fromWeb(response.body).on('error', next).pipe(res);
+    else res.end();
+  } catch (error) {
+    next(error);
+  }
+});
 
 app.post('/api', async (req, res) => {
   let payload = {};
