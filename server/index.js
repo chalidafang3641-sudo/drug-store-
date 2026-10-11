@@ -581,7 +581,7 @@ async function apiGetHistory(p) {
 
 async function apiGetNotifyConfig() {
   const c = await readConfig();
-  return { status: 'success', notification: configOut(c, false).notification };
+  return { status: 'success', notification: configOut(c, true).notification };
 }
 
 async function apiSaveNotifyConfig(patch = {}) {
@@ -591,8 +591,8 @@ async function apiSaveNotifyConfig(patch = {}) {
          notification_channel = COALESCE($2, notification_channel),
          notify_time = COALESCE($3, notify_time),
          telegram_chat_id = COALESCE($4, telegram_chat_id),
-         telegram_bot_token = CASE WHEN $5::text <> '' THEN $5 WHEN $6 THEN '' ELSE telegram_bot_token END,
-         line_token = CASE WHEN $7::text <> '' THEN $7 WHEN $8 THEN '' ELSE line_token END
+         telegram_bot_token = CASE WHEN $6 THEN '' WHEN $5::text <> '' THEN $5 ELSE telegram_bot_token END,
+         line_token = CASE WHEN $8 THEN '' WHEN $7::text <> '' THEN $7 ELSE line_token END
      WHERE id = TRUE`,
     [
       patch.enabled === undefined ? null : !!patch.enabled,

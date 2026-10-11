@@ -1319,8 +1319,10 @@
                 <span>Telegram Bot Token</span>
                 <input
                   name="telegram_bot_token"
+                  value={data.notification.telegram_bot_token || ''}
                   autocomplete="off"
-                  placeholder={data.notification.has_telegram_token ? 'ตั้งค่าไว้แล้ว (เว้นว่างถ้าไม่เปลี่ยน)' : 'วาง bot token'}
+                  spellcheck="false"
+                  placeholder="วาง bot token"
                 />
               </label>
               <div class="hint">สร้างบอทด้วย @BotFather แล้วเอา token กับ chat id มาวาง</div>
@@ -1335,8 +1337,10 @@
                 <span>LINE Channel Access Token</span>
                 <input
                   name="line_token"
+                  value={data.notification.line_token || ''}
                   autocomplete="off"
-                  placeholder={data.notification.has_line_token ? 'ตั้งค่าไว้แล้ว (เว้นว่างถ้าไม่เปลี่ยน)' : 'วาง channel access token'}
+                  spellcheck="false"
+                  placeholder="วาง channel access token"
                 />
               </label>
               <div class="hint">ใช้ broadcast ของ Messaging API; LINE Notify ถูกยกเลิกแล้ว</div>
