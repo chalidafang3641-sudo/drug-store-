@@ -5,7 +5,7 @@ export async function tick(env, fetcher = fetch) {
   const response = await fetcher(url.href, {
     method: 'POST',
     headers: { authorization: `Bearer ${env.NOTIFY_SCHEDULE_SECRET}` },
-    redirect: 'error',
+    redirect: 'manual',
     signal: AbortSignal.timeout(45000)
   });
   if (!response.ok) throw new Error(`Notification endpoint HTTP ${response.status}`);

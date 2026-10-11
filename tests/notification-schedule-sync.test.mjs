@@ -21,10 +21,11 @@ test('worker authenticates POST, refuses redirects and reports endpoint failures
   await tick(env, async (_url, options) => {
     assert.equal(options.method, 'POST');
     assert.equal(options.headers.authorization, 'Bearer test-only');
-    assert.equal(options.redirect, 'error');
+    assert.equal(options.redirect, 'manual');
     return Response.json({ ok: true, results: [] });
   });
   await assert.rejects(tick(env, async () => new Response('', { status: 401 })), /401/);
+  await assert.rejects(tick(env, async () => new Response(null, { status: 302, headers: { location: 'https://example.org/' } })), /302/);
   await assert.rejects(tick(env, async () => Response.json({ ok: false })), /dispatch failed/);
   await assert.rejects(tick({ ...env, NOTIFY_SCHEDULE_SECRET: '' }), /secret missing/);
   assert.equal(worker.fetch().status, 404);
