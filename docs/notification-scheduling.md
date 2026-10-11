@@ -1,16 +1,15 @@
 # Notification scheduling
 
-- LINE and Telegram have independent enable flags, credentials and test buttons.
-- Existing enabled-channel selection is preserved by `20261011_notification_channels.sql`; migration does not enable another channel automatically.
-- The global enable switch and `notify_time` apply to both channels. Time zone: Asia/Bangkok.
-- Vercel calls `/api/cron/notifications/HHMM`. `vercel.json` contains 96 separate daily jobs spaced at 15-minute nominal intervals in UTC. Each job runs once per day, within Hobby's daily-per-job constraint and 100-job project limit (98 including two keepalives).
-- Every invocation reads the current database config; changing config does not need deployment. GitHub is used for source control only; the GitHub scheduler workflow has been removed.
-- Set `CRON_SECRET` in Vercel Production. Vercel supplies it as `Authorization: Bearer ...`. Never commit its value. The older POST endpoint remains protected by `NOTIFY_SCHEDULE_SECRET` for explicit manual use, but no scheduler uses it.
-- Apply both notification migrations before deploying. The existing Vercel morning/evening jobs remain database-only keepalives.
-- Hobby jobs may be invoked anywhere within the scheduled hour. The 15-minute nominal spacing is not a 15-minute delivery SLA. The first invocation at or after config time attempts delivery; near midnight a late invocation may miss that day's window. Exact-minute schedules require a platform with that guarantee.
-- Verify project `crons.definitions`, enabled state and deployment ID after release. Registration and deployment READY are not proof that an automatic invocation has occurred. Inspect Vercel logs for `Scheduled notifications` with `source: vercel`, then `notification_deliveries` for provider acceptance.
-- A unique `(delivery_day, channel)` claim prevents duplicate sends on concurrent or repeated ticks. The first tick after the configured time sends, even if late that day. Already claimed channels do not resend when config changes that day.
-- Each channel is attempted independently. Provider failures do not prevent the other channel from being attempted.
-- Failed or uncertain (`sending`) deliveries are not automatically retried, because the provider may have accepted a message before a timeout. Review `notification_deliveries` and use the channel-specific test button for a deliberate manual send.
-- Test buttons use saved credentials, bypass the enable switch, and do not count toward scheduled daily delivery.
-- Do not invoke the authenticated scheduled endpoint casually: after the configured time it can send real messages.
+- LINE and Telegram have independent credentials, enable switches and test buttons. The global switch and Bangkok notify_time apply to both.
+- Production has one daily notification job at /api/notifications/scheduled and two database keepalives. GitHub Actions and the former 96 polling jobs are not used.
+- npm run build runs scripts/build-notification-cron.mjs after SvelteKit. It reads the latest database config and writes three cron definitions to .vercel/output/config.json using Vercel's Build Output API.
+- Bangkok 20:37 becomes UTC 37 13 * * *. Every deployment rereads the database, so a static repository schedule cannot overwrite a newer user setting.
+- Saving settings calls the server-only synchronizer. A matching active schedule requires no deployment. Otherwise it redeploys current production source, whose build reads the latest saved time.
+- A matching pending deployment is reused. Settings displays pending, active or failure/mismatch by checking actual Vercel cron definitions. Pending state refreshes every 15 seconds without replacing unsaved inputs.
+- Failed synchronization retains saved credentials and explicitly reports scheduling failure. Save again to retry.
+- Required production server variables: NOTIFY_VERCEL_TOKEN, NOTIFY_VERCEL_PROJECT_ID, NOTIFY_VERCEL_TEAM_ID, CRON_SECRET and the database connection. Never expose their values to the browser or repository.
+- CRON_SECRET authenticates Vercel GET requests. The legacy POST endpoint uses NOTIFY_SCHEDULE_SECRET separately and is not used by the scheduler.
+- Apply 20261011_config_driven_cron.sql before deployment. It adds deployment tracking and duplicate protection by (delivery_day, channel, scheduled_time). A new time can send again that day; repeated calls for the same time cannot.
+- Failed/uncertain sends are not retried automatically because providers may have accepted a timed-out request. Test buttons explicitly send using saved credentials without consuming the scheduled slot.
+- Hobby timing is approximate within the scheduled hour. A changed time takes effect only after deployment. If that time has passed by activation, the next automatic invocation may be the following day.
+- Verify actual project definitions and deployment ID, then separately inspect automatic logs (source: vercel) and notification_deliveries for provider acceptance. Do not prove scheduling by manually sending.

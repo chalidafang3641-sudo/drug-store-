@@ -26,6 +26,7 @@ import { apiLogin, apiLogout, guard, publicUser, ROLES } from '../src/lib/server
 import { apiBranding, apiGetConfig, apiSaveConfig, configOut, readConfig } from '../src/lib/server/api-config.js';
 import { PORT, PUBLIC_BASE_URL, rootDir, uploadDir } from '../src/lib/server/api-runtime.js';
 import { pool } from '../src/lib/server/postgres.js';
+import { notificationScheduleStatus, syncNotificationSchedule } from '../src/lib/server/notification-schedule-sync.js';
 
 const app = express();
 app.use(cors());
@@ -595,7 +596,7 @@ async function apiGetHistory(p) {
 
 async function apiGetNotifyConfig() {
   const c = await readConfig();
-  return { status: 'success', notification: configOut(c, true).notification };
+  return { status: 'success', notification: configOut(c, true).notification, schedule: await notificationScheduleStatus(c) };
 }
 
 async function apiSaveNotifyConfig(patch = {}) {
@@ -626,7 +627,11 @@ async function apiSaveNotifyConfig(patch = {}) {
       patch.line_enabled ?? null
     ]
   );
-  return { status: 'success', message: 'บันทึกการแจ้งเตือนแล้ว' };
+  const schedule = await syncNotificationSchedule(await readConfig(), (sql, params) => pool.query(sql, params));
+  return {
+    status: 'success', schedule,
+    message: schedule.state === 'active' ? 'บันทึกแล้ว ตารางส่งใช้งานอยู่' : schedule.state === 'pending' ? 'บันทึกแล้ว กำลังปรับตารางส่งอัตโนมัติ' : 'บันทึกข้อมูลแล้ว แต่ปรับตารางส่งไม่สำเร็จ กรุณาบันทึกอีกครั้ง'
+  };
 }
 
 function notificationLines(title, rows = []) {

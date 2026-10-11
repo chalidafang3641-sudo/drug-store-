@@ -13,9 +13,9 @@ test('uses Bangkok config time and independently enabled channels', () => {
 test('isolates channel failures and does not resend claimed daily channels', async () => {
   const claims = new Set();
   const calls = [];
-  const query = async (sql, [day, channel]) => {
+  const query = async (sql, [day, channel, time]) => {
     if (!sql.startsWith('INSERT')) return {};
-    const key = `${day}/${channel}`;
+    const key = `${day}/${channel}/${time}`;
     if (claims.has(key)) return { rowCount: 0 };
     claims.add(key);
     return { rowCount: 1 };
@@ -28,4 +28,6 @@ test('isolates channel failures and does not resend claimed daily channels', asy
   assert.deepEqual((await dispatchScheduledNotifications(options)).results, [{ channel: 'line', status: 'failed' }, { channel: 'telegram', status: 'sent' }]);
   assert.deepEqual((await dispatchScheduledNotifications(options)).results, []);
   assert.deepEqual(calls, ['line', 'telegram']);
+  await dispatchScheduledNotifications({ ...options, config: { ...config, notify_time: '17:05' }, now: new Date('2026-10-11T10:05:00Z') });
+  assert.deepEqual(calls, ['line', 'telegram', 'line', 'telegram']);
 });

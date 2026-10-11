@@ -135,6 +135,7 @@ export async function load({ locals, url }) {
     history: history.status === 'success' ? history.data || [] : [],
     config: config.status === 'success' ? config.config : DEFAULT_CONFIG,
     notification: notification.status === 'success' ? notification.notification : null,
+    notificationSchedule: notification.status === 'success' ? notification.schedule : null,
     users: userList
   };
 }

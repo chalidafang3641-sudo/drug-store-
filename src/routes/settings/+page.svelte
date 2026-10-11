@@ -6,6 +6,24 @@
 
   export let data;
   export let form;
+  let notificationSchedule;
+  $: notificationSchedule = data.notificationSchedule;
+  onMount(() => {
+    let checking = false;
+    const timer = setInterval(async () => {
+      if (data.tab !== 'notify' || notificationSchedule?.state !== 'pending' || checking) return;
+      checking = true;
+      try {
+        const response = await fetch('/api/notifications/schedule-status');
+        if (response.ok) notificationSchedule = await response.json();
+      } catch {
+        // Retry status on the next interval after a transient connection error.
+      } finally {
+        checking = false;
+      }
+    }, 15000);
+    return () => clearInterval(timer);
+  });
 
   const roleLabels = {
     admin: 'ผู้ดูแลระบบ',
@@ -1282,6 +1300,15 @@
         <span>{data.notification?.enabled ? 'เปิดใช้งาน' : 'ปิดอยู่'}</span>
       </div>
       {#if data.canAdmin && data.notification}
+        <p role="status">
+          {#if notificationSchedule?.state === 'active'}
+            ตารางส่งเวลา {notificationSchedule.time} น. ใช้งานแล้ว (เวลาไทย)
+          {:else if notificationSchedule?.state === 'pending'}
+            กำลังปรับตารางส่งเป็น {notificationSchedule.time} น.
+          {:else}
+            ตารางส่งยังไม่ยืนยัน กรุณากดบันทึกเพื่อลองปรับตารางอีกครั้ง
+          {/if}
+        </p>
         <div class="page-sub">ตั้งค่าช่องทางและเวลาส่งสรุปยาใกล้หมดอายุประจำวัน</div>
         <form method="POST" action="?/saveNotification" class="notify-shell">
           <div class="card-soft switch-card notify-toggle">
@@ -1354,7 +1381,7 @@
         <form id="test-line" method="POST" action="?/testNotification">
           <input type="hidden" name="channel" value="line" />
         </form>
-        <p class="hint notify-setup-note">สำหรับ production ให้เรียก `POST /api/notifications/run` พร้อม `x-notify-secret` หรือ `?secret=` ที่ตรงกับ `NOTIFY_RUN_SECRET`</p>
+        <p class="hint notify-setup-note">เวลาส่งอาจล่าช้าภายในชั่วโมงตามบริการตั้งเวลา</p>
       {:else}
         <p class="empty">เฉพาะผู้ดูแลระบบเท่านั้นที่ตั้งค่าการแจ้งเตือนได้</p>
       {/if}

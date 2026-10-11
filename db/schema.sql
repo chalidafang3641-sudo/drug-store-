@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS app_config (
   notification_enabled BOOLEAN NOT NULL DEFAULT FALSE,
   notification_channel TEXT NOT NULL DEFAULT 'telegram' CHECK (notification_channel IN ('telegram', 'line')),
   telegram_enabled BOOLEAN,
+  notification_schedule_deployment_id TEXT,
   line_enabled BOOLEAN,
   telegram_bot_token TEXT NOT NULL DEFAULT '',
   telegram_chat_id TEXT NOT NULL DEFAULT '',
@@ -426,8 +427,9 @@ ON CONFLICT (username) DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS notification_deliveries (
   delivery_day DATE NOT NULL,
+  scheduled_time TEXT NOT NULL DEFAULT 'legacy',
   channel TEXT NOT NULL CHECK (channel IN ('line', 'telegram')),
   status TEXT NOT NULL CHECK (status IN ('sending', 'sent', 'failed', 'skipped')),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  PRIMARY KEY (delivery_day, channel)
+  PRIMARY KEY (delivery_day, channel, scheduled_time)
 );

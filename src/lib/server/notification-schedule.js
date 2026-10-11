@@ -17,8 +17,8 @@ export async function dispatchScheduledNotifications({ config, query, dispatch, 
   for (const channel of channels) {
     // Claim before sending: concurrent ticks cannot duplicate a daily message.
     // Failed/uncertain deliveries require manual retry rather than automatic duplicates.
-    const claim = await query(`INSERT INTO notification_deliveries (delivery_day, channel, status)
-      VALUES ($1, $2, 'sending') ON CONFLICT (delivery_day, channel) DO NOTHING RETURNING channel`, [day, channel]);
+    const claim = await query(`INSERT INTO notification_deliveries (delivery_day, channel, scheduled_time, status)
+      VALUES ($1, $2, $3, 'sending') ON CONFLICT (delivery_day, channel, scheduled_time) DO NOTHING RETURNING channel`, [day, channel, config.notify_time]);
     if (!claim.rowCount) continue;
     let status;
     try {
@@ -27,7 +27,7 @@ export async function dispatchScheduledNotifications({ config, query, dispatch, 
     } catch {
       status = 'failed';
     }
-    await query('UPDATE notification_deliveries SET status = $3, updated_at = now() WHERE delivery_day = $1 AND channel = $2', [day, channel, status]);
+    await query('UPDATE notification_deliveries SET status = $3, updated_at = now() WHERE delivery_day = $1 AND channel = $2 AND scheduled_time = $4', [day, channel, status, config.notify_time]);
     results.push({ channel, status });
   }
   return { ok: results.every((result) => result.status !== 'failed'), results };
