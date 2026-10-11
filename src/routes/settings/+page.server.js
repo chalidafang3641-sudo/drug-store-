@@ -299,7 +299,8 @@ export const actions = {
     const form = await request.formData();
     const payload = {
       enabled: form.get('enabled') === 'on',
-      channel: String(form.get('channel') || 'telegram'),
+      telegram_enabled: form.get('telegram_enabled') === 'on',
+      line_enabled: form.get('line_enabled') === 'on',
       notify_time: String(form.get('notify_time') || '08:00'),
       telegram_chat_id: String(form.get('telegram_chat_id') || '').trim(),
       telegram_bot_token: String(form.get('telegram_bot_token') || '').trim(),
@@ -315,10 +316,13 @@ export const actions = {
     redirect(303, '/settings?tab=notify&message=' + encodeURIComponent(result.message || 'บันทึกการแจ้งเตือนแล้ว'));
   },
 
-  testNotification: async ({ locals }) => {
+  testNotification: async ({ locals, request }) => {
     requirePermission(locals, ['*']);
 
-    const result = await api('testNotification', locals.token);
+    const form = await request.formData();
+    const channel = String(form.get('channel') || '');
+    if (!['line', 'telegram'].includes(channel)) return fail(400, { message: 'ช่องทางไม่ถูกต้อง' });
+    const result = await api('testNotification', locals.token, { channel });
     if (result.status !== 'success') {
       return fail(400, { message: result.message || 'ส่งข้อความทดสอบไม่สำเร็จ' });
     }

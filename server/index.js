@@ -107,7 +107,7 @@ async function route(action, p) {
     case 'recentExchanges': return guard(p, ['view'], () => apiRecentTransactions('exchange', p.limit || 20));
     case 'getNotifyConfig': return guard(p, ['*'], apiGetNotifyConfig);
     case 'saveNotifyConfig': return guard(p, ['*'], () => apiSaveNotifyConfig(p.notification));
-    case 'testNotification': return guard(p, ['*'], apiTestNotification);
+    case 'testNotification': return guard(p, ['*'], () => apiTestNotification(p.channel));
     case 'changePassword': return guard(p, ['view'], (user) => apiChangePassword(p, user));
     case 'exportData': return guard(p, ['view'], () => apiExportData(p));
     case 'disposeItem': return guard(p, ['receive'], (user) => apiDisposeItem(p, user));
@@ -599,10 +599,15 @@ async function apiGetNotifyConfig() {
 }
 
 async function apiSaveNotifyConfig(patch = {}) {
+  if (patch.notify_time !== undefined && !/^([01]\d|2[0-3]):[0-5]\d$/.test(patch.notify_time)) {
+    return { status: 'error', message: 'เวลาส่งไม่ถูกต้อง' };
+  }
   await pool.query(
     `UPDATE app_config
      SET notification_enabled = COALESCE($1, notification_enabled),
          notification_channel = COALESCE($2, notification_channel),
+         telegram_enabled = COALESCE($9, telegram_enabled),
+         line_enabled = COALESCE($10, line_enabled),
          notify_time = COALESCE($3, notify_time),
          telegram_chat_id = COALESCE($4, telegram_chat_id),
          telegram_bot_token = CASE WHEN $6 THEN '' WHEN $5::text <> '' THEN $5 ELSE telegram_bot_token END,
@@ -616,7 +621,9 @@ async function apiSaveNotifyConfig(patch = {}) {
       patch.telegram_bot_token || '',
       !!patch.clear_telegram_token,
       patch.line_token || '',
-      !!patch.clear_line_token
+      !!patch.clear_line_token,
+      patch.telegram_enabled ?? null,
+      patch.line_enabled ?? null
     ]
   );
   return { status: 'success', message: 'บันทึกการแจ้งเตือนแล้ว' };
@@ -726,23 +733,35 @@ export async function runNotificationDispatch(options = {}) {
     test: !!options.test
   });
 
-  const result = notification.channel === 'line'
-    ? await sendLineBroadcast(notification.line_token, text)
-    : await sendTelegramMessage(notification.telegram_bot_token, notification.telegram_chat_id, text);
-
-  if (result.status !== 'success') {
-    return result;
+  const channels = options.channel ? [options.channel] : ['line', 'telegram'].filter((channel) => notification[`${channel}_enabled`]);
+  if (channels.some((channel) => !['line', 'telegram'].includes(channel))) {
+    return { status: 'error', message: 'ช่องทางไม่ถูกต้อง' };
+  }
+  if (!channels.length) return { status: 'success', skipped: true, message: 'ปิดทุกช่องทางอยู่' };
+  const results = await Promise.all(channels.map(async (channel) => {
+    try {
+      const result = channel === 'line'
+        ? await sendLineBroadcast(notification.line_token, text)
+        : await sendTelegramMessage(notification.telegram_bot_token, notification.telegram_chat_id, text);
+      return { channel, ...result };
+    } catch {
+      return { channel, status: 'error', message: 'เชื่อมต่อผู้ให้บริการไม่สำเร็จ' };
+    }
+  }));
+  if (results.some((result) => result.status !== 'success')) {
+    return { status: 'error', results, message: results.map((result) => `${result.channel}: ${result.status === 'success' ? 'ส่งแล้ว' : result.message}`).join('; ') };
   }
 
   return {
     status: 'success',
     message: options.test ? 'ส่งข้อความทดสอบแล้ว' : 'ส่งการแจ้งเตือนแล้ว',
+    results,
     text
   };
 }
 
-async function apiTestNotification() {
-  return runNotificationDispatch({ force: true, test: true });
+async function apiTestNotification(channel) {
+  return runNotificationDispatch({ force: true, test: true, channel });
 }
 
 async function apiChangePassword(p, user) {

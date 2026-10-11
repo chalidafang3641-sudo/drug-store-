@@ -23,6 +23,8 @@ CREATE TABLE IF NOT EXISTS app_config (
   default_receive_location_id BIGINT,
   notification_enabled BOOLEAN NOT NULL DEFAULT FALSE,
   notification_channel TEXT NOT NULL DEFAULT 'telegram' CHECK (notification_channel IN ('telegram', 'line')),
+  telegram_enabled BOOLEAN,
+  line_enabled BOOLEAN,
   telegram_bot_token TEXT NOT NULL DEFAULT '',
   telegram_chat_id TEXT NOT NULL DEFAULT '',
   line_token TEXT NOT NULL DEFAULT '',
@@ -421,3 +423,11 @@ WHERE default_receive_location_id IS NULL;
 INSERT INTO app_users (username, password_hash, role, name, permissions)
 VALUES ('admin', crypt('admin1234', gen_salt('bf')), 'admin', 'ผู้ดูแลระบบ', ARRAY['*'])
 ON CONFLICT (username) DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS notification_deliveries (
+  delivery_day DATE NOT NULL,
+  channel TEXT NOT NULL CHECK (channel IN ('line', 'telegram')),
+  status TEXT NOT NULL CHECK (status IN ('sending', 'sent', 'failed', 'skipped')),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (delivery_day, channel)
+);

@@ -74,8 +74,6 @@
   ];
 
   let darkMode = false;
-  let notificationChannel = 'telegram';
-  $: notificationChannel = data.notification?.channel || 'telegram';
   let reportType = 'near';
   let reportPending = false;
   let exportKind = form?.exportResult?.kind || 'all';
@@ -1278,7 +1276,7 @@
       {/if}
     </section>
   {:else if data.tab === 'notify'}
-    <section class="panel">
+    <section>
       <div class="section-head">
         <h2>การแจ้งเตือน</h2>
         <span>{data.notification?.enabled ? 'เปิดใช้งาน' : 'ปิดอยู่'}</span>
@@ -1298,20 +1296,14 @@
 
           <div class="notify-form">
             <label>
-              <span>ช่องทาง</span>
-              <select name="channel" bind:value={notificationChannel}>
-                <option value="telegram">Telegram</option>
-                <option value="line">LINE Messaging API</option>
-              </select>
-            </label>
-            <label>
               <span>เวลาส่ง</span>
               <input name="notify_time" type="time" value={data.notification.notify_time || '08:00'} />
             </label>
           </div>
 
-          {#if notificationChannel !== 'line'}
-            <div class="notify-channel-block">
+            <section class="panel notify-channel-block">
+              <h3>Telegram</h3>
+              <label class="check-line"><input name="telegram_enabled" type="checkbox" checked={data.notification.telegram_enabled} /><span>เปิดส่ง Telegram</span></label>
               <label>
                 <span>Telegram Chat ID</span>
                 <input name="telegram_chat_id" value={data.notification.telegram_chat_id || ''} autocomplete="off" placeholder="-1001234567890" />
@@ -1331,9 +1323,11 @@
                 <input name="clear_telegram_token" type="checkbox" />
                 <span>ลบ Telegram token</span>
               </label>
-            </div>
-          {:else}
-            <div class="notify-channel-block">
+              <button type="submit" form="test-telegram">ทดสอบ Telegram</button>
+            </section>
+            <section class="panel notify-channel-block">
+              <h3>LINE</h3>
+              <label class="check-line"><input name="line_enabled" type="checkbox" checked={data.notification.line_enabled} /><span>เปิดส่ง LINE</span></label>
               <label>
                 <span>LINE Channel Access Token</span>
                 <input
@@ -1349,14 +1343,16 @@
                 <input name="clear_line_token" type="checkbox" />
                 <span>ลบ LINE token</span>
               </label>
-            </div>
-          {/if}
+              <button type="submit" form="test-line">ทดสอบ LINE</button>
+            </section>
 
           <button type="submit">บันทึกการแจ้งเตือน</button>
         </form>
-        <form method="POST" action="?/testNotification" class="test-form">
-          <button type="submit">ส่งข้อความทดสอบ</button>
-          <p class="empty">จะส่งจริงไปยัง channel ที่ตั้งไว้ในขณะนี้</p>
+        <form id="test-telegram" method="POST" action="?/testNotification">
+          <input type="hidden" name="channel" value="telegram" />
+        </form>
+        <form id="test-line" method="POST" action="?/testNotification">
+          <input type="hidden" name="channel" value="line" />
         </form>
         <p class="hint notify-setup-note">สำหรับ production ให้เรียก `POST /api/notifications/run` พร้อม `x-notify-secret` หรือ `?secret=` ที่ตรงกับ `NOTIFY_RUN_SECRET`</p>
       {:else}
