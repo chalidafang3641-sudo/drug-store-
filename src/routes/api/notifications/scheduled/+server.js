@@ -4,7 +4,14 @@ import { dispatchScheduledNotifications } from '$lib/server/notification-schedul
 import { runNotificationDispatch } from '../../../../../server/index.js';
 
 export async function POST({ request }) {
-  const secret = process.env.NOTIFY_SCHEDULE_SECRET;
+  return handleScheduledRequest(request, process.env.NOTIFY_SCHEDULE_SECRET, 'manual');
+}
+
+export async function GET({ request }) {
+  return handleScheduledRequest(request, process.env.CRON_SECRET, 'vercel');
+}
+
+async function handleScheduledRequest(request, secret, source) {
   if (!secret || request.headers.get('authorization') !== `Bearer ${secret}`) {
     return Response.json({ ok: false }, { status: 401 });
   }
@@ -15,7 +22,7 @@ export async function POST({ request }) {
       query: (sql, params) => pool.query(sql, params),
       dispatch: (channel) => runNotificationDispatch({ channel })
     });
-    console.info('Scheduled notifications', result);
+    console.info('Scheduled notifications', { source, ...result });
     return Response.json(result, { status: result.ok ? 200 : 502 });
   } catch {
     console.error('Scheduled notifications failed');

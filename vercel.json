@@ -1,5 +1,7 @@
 {
-  "regions": ["sin1"],
+  "regions": [
+    "sin1"
+  ],
   "crons": [
     {
       "path": "/api/cron/supabase-keepalive",
@@ -8,6 +10,390 @@
     {
       "path": "/api/cron/supabase-keepalive-evening",
       "schedule": "0 11 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/0000",
+      "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/0015",
+      "schedule": "15 0 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/0030",
+      "schedule": "30 0 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/0045",
+      "schedule": "45 0 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/0100",
+      "schedule": "0 1 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/0115",
+      "schedule": "15 1 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/0130",
+      "schedule": "30 1 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/0145",
+      "schedule": "45 1 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/0200",
+      "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/0215",
+      "schedule": "15 2 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/0230",
+      "schedule": "30 2 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/0245",
+      "schedule": "45 2 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/0300",
+      "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/0315",
+      "schedule": "15 3 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/0330",
+      "schedule": "30 3 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/0345",
+      "schedule": "45 3 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/0400",
+      "schedule": "0 4 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/0415",
+      "schedule": "15 4 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/0430",
+      "schedule": "30 4 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/0445",
+      "schedule": "45 4 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/0500",
+      "schedule": "0 5 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/0515",
+      "schedule": "15 5 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/0530",
+      "schedule": "30 5 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/0545",
+      "schedule": "45 5 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/0600",
+      "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/0615",
+      "schedule": "15 6 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/0630",
+      "schedule": "30 6 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/0645",
+      "schedule": "45 6 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/0700",
+      "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/0715",
+      "schedule": "15 7 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/0730",
+      "schedule": "30 7 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/0745",
+      "schedule": "45 7 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/0800",
+      "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/0815",
+      "schedule": "15 8 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/0830",
+      "schedule": "30 8 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/0845",
+      "schedule": "45 8 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/0900",
+      "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/0915",
+      "schedule": "15 9 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/0930",
+      "schedule": "30 9 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/0945",
+      "schedule": "45 9 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/1000",
+      "schedule": "0 10 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/1015",
+      "schedule": "15 10 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/1030",
+      "schedule": "30 10 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/1045",
+      "schedule": "45 10 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/1100",
+      "schedule": "0 11 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/1115",
+      "schedule": "15 11 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/1130",
+      "schedule": "30 11 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/1145",
+      "schedule": "45 11 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/1200",
+      "schedule": "0 12 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/1215",
+      "schedule": "15 12 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/1230",
+      "schedule": "30 12 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/1245",
+      "schedule": "45 12 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/1300",
+      "schedule": "0 13 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/1315",
+      "schedule": "15 13 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/1330",
+      "schedule": "30 13 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/1345",
+      "schedule": "45 13 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/1400",
+      "schedule": "0 14 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/1415",
+      "schedule": "15 14 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/1430",
+      "schedule": "30 14 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/1445",
+      "schedule": "45 14 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/1500",
+      "schedule": "0 15 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/1515",
+      "schedule": "15 15 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/1530",
+      "schedule": "30 15 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/1545",
+      "schedule": "45 15 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/1600",
+      "schedule": "0 16 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/1615",
+      "schedule": "15 16 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/1630",
+      "schedule": "30 16 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/1645",
+      "schedule": "45 16 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/1700",
+      "schedule": "0 17 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/1715",
+      "schedule": "15 17 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/1730",
+      "schedule": "30 17 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/1745",
+      "schedule": "45 17 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/1800",
+      "schedule": "0 18 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/1815",
+      "schedule": "15 18 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/1830",
+      "schedule": "30 18 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/1845",
+      "schedule": "45 18 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/1900",
+      "schedule": "0 19 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/1915",
+      "schedule": "15 19 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/1930",
+      "schedule": "30 19 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/1945",
+      "schedule": "45 19 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/2000",
+      "schedule": "0 20 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/2015",
+      "schedule": "15 20 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/2030",
+      "schedule": "30 20 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/2045",
+      "schedule": "45 20 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/2100",
+      "schedule": "0 21 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/2115",
+      "schedule": "15 21 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/2130",
+      "schedule": "30 21 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/2145",
+      "schedule": "45 21 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/2200",
+      "schedule": "0 22 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/2215",
+      "schedule": "15 22 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/2230",
+      "schedule": "30 22 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/2245",
+      "schedule": "45 22 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/2300",
+      "schedule": "0 23 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/2315",
+      "schedule": "15 23 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/2330",
+      "schedule": "30 23 * * *"
+    },
+    {
+      "path": "/api/cron/notifications/2345",
+      "schedule": "45 23 * * *"
     }
   ]
 }
