@@ -403,6 +403,23 @@
     };
   }
 
+  let savingNotification = false;
+
+  function enhanceNotificationSave({ cancel }) {
+    if (savingNotification) {
+      cancel();
+      return;
+    }
+    savingNotification = true;
+    return async ({ update }) => {
+      try {
+        await update({ reset: false });
+      } finally {
+        savingNotification = false;
+      }
+    };
+  }
+
   function enhanceLotToggle({ formElement }) {
     const checkbox = formElement.querySelector('input[name="value"]');
     const previousChecked = checkbox instanceof HTMLInputElement ? !checkbox.checked : false;
@@ -1310,7 +1327,7 @@
           {/if}
         </p>
         <div class="page-sub">ตั้งค่าช่องทางและเวลาส่งสรุปยาใกล้หมดอายุประจำวัน</div>
-        <form method="POST" action="?/saveNotification" class="notify-shell">
+        <form method="POST" action="?/saveNotification" class="notify-shell" use:enhance={enhanceNotificationSave} aria-busy={savingNotification}>
           <div class="card-soft switch-card notify-toggle">
             <div>
               <div class="switch-title">เปิดการแจ้งเตือน</div>
@@ -1373,7 +1390,7 @@
               <button type="submit" form="test-line">ทดสอบ LINE</button>
             </section>
 
-          <button type="submit">บันทึกการแจ้งเตือน</button>
+          <button type="submit" disabled={savingNotification}>{savingNotification ? 'กำลังบันทึก…' : 'บันทึกการแจ้งเตือน'}</button>
         </form>
         <form id="test-telegram" method="POST" action="?/testNotification">
           <input type="hidden" name="channel" value="telegram" />
