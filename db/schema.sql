@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS app_config (
   notification_channel TEXT NOT NULL DEFAULT 'telegram' CHECK (notification_channel IN ('telegram', 'line')),
   telegram_enabled BOOLEAN,
   notification_schedule_deployment_id TEXT,
+  notification_scheduler_last_tick TIMESTAMPTZ,
   line_enabled BOOLEAN,
   telegram_bot_token TEXT NOT NULL DEFAULT '',
   telegram_chat_id TEXT NOT NULL DEFAULT '',

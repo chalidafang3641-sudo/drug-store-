@@ -1,15 +1,24 @@
 # Notification scheduling
 
-- LINE and Telegram have independent credentials, enable switches and test buttons. The global switch and Bangkok notify_time apply to both.
-- Production has one daily notification job at /api/notifications/scheduled and two database keepalives. GitHub Actions and the former 96 polling jobs are not used.
-- npm run build runs scripts/build-notification-cron.mjs after SvelteKit. It reads the latest database config and writes three cron definitions to .vercel/output/config.json using Vercel's Build Output API.
-- Bangkok 20:37 becomes UTC 37 13 * * *. Every deployment rereads the database, so a static repository schedule cannot overwrite a newer user setting.
-- Saving settings calls the server-only synchronizer. A matching active schedule requires no deployment. Otherwise it redeploys current production source, whose build reads the latest saved time.
-- A matching pending deployment is reused. Settings displays pending, active or failure/mismatch by checking actual Vercel cron definitions. Pending state refreshes every 15 seconds without replacing unsaved inputs.
-- Failed synchronization retains saved credentials and explicitly reports scheduling failure. Save again to retry.
-- Required production server variables: NOTIFY_VERCEL_TOKEN, NOTIFY_VERCEL_PROJECT_ID, NOTIFY_VERCEL_TEAM_ID, CRON_SECRET and the database connection. Never expose their values to the browser or repository.
-- CRON_SECRET authenticates Vercel GET requests. The legacy POST endpoint uses NOTIFY_SCHEDULE_SECRET separately and is not used by the scheduler.
-- Apply 20261011_config_driven_cron.sql before deployment. It adds deployment tracking and duplicate protection by (delivery_day, channel, scheduled_time). A new time can send again that day; repeated calls for the same time cannot.
-- Failed/uncertain sends are not retried automatically because providers may have accepted a timed-out request. Test buttons explicitly send using saved credentials without consuming the scheduled slot.
-- Hobby timing is approximate within the scheduled hour. A changed time takes effect only after deployment. If that time has passed by activation, the next automatic invocation may be the following day.
-- Verify actual project definitions and deployment ID, then separately inspect automatic logs (source: vercel) and notification_deliveries for provider acceptance. Do not prove scheduling by manually sending.
+## Runtime
+
+- Cloudflare Worker `drugstore-notification-cron` runs every minute and sends an authenticated POST to `https://drug-store-pi.vercel.app/api/notifications/scheduled`.
+- The API reads the latest Neon configuration on every call. Bangkok `notify_time`, the global switch and independent LINE/Telegram switches determine which channels are due. Saving configuration never invokes a deployment API.
+- The existing unique database key `(delivery_day, channel, scheduled_time)` prevents overlapping ticks from sending the same slot twice. Changing the time creates a different slot, including later on the same day. Late ticks catch up within the same Bangkok calendar day.
+- Failed or uncertain provider deliveries remain claimed: they are not automatically retried because the provider may have accepted a request before a timeout. HTTP/connection failures before claiming are retried by the next minute tick. Inspect `notification_deliveries` and logs before any manual retry; do not blindly delete claims.
+- A recent authenticated POST updates `notification_scheduler_last_tick`. Settings refreshes this status every 15 seconds; after three minutes without contact it reports unavailable. This confirms scheduler contact, not successful message delivery.
+- Vercel retains only the two existing database keepalives. GET on the former notification cron endpoint returns 405. GitHub scheduling remains unused.
+
+## Deployment
+
+1. Apply `db/migrations/20261011_cloudflare_scheduler.sql` to Neon before the application deployment. The previous config-driven cron migration must already be applied.
+2. Set matching `NOTIFY_SCHEDULE_SECRET` values in Vercel Production and the Cloudflare Worker secret store. Never commit the value or use a public environment variable.
+3. Deploy the application to Vercel. This removes notification cron registration and the old save-time redeploy behavior. Existing `NOTIFY_VERCEL_*` credentials are no longer used and may be removed after cutover verification.
+4. Deploy `cloudflare/notification-cron/wrangler.jsonc` using Wrangler and install the Worker secret. `workers_dev` and preview URLs are disabled; only the scheduled handler dispatches.
+5. Wait for Cloudflare trigger propagation. Verify automatic Worker events, recent database heartbeat, and separate per-channel delivery records. Do not manually trigger a real send to prove the scheduler works.
+
+Normal changes to notification time or credentials require only saving settings, not deployment. Cloudflare and provider/network delays remain possible; this is not an exact-second guarantee. One-minute polling also generates Vercel requests and database activity, which consume their respective plan quotas.
+
+## Tests
+
+Run `node --test tests/notification-schedule.test.mjs tests/notification-schedule-sync.test.mjs`, `npm run check:svelte`, and `npm run build`. Worker tests use mocked HTTP responses and do not send production notifications.

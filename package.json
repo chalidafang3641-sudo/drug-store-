@@ -18,7 +18,7 @@
     "start": "node server/index.js",
     "dev": "node --watch server/index.js",
     "dev:svelte": "vite dev",
-    "build": "vite build && node scripts/build-notification-cron.mjs",
+    "build": "vite build",
     "preview": "vite preview",
     "check": "node --check server/index.js",
     "check:svelte": "svelte-kit sync && svelte-check --tsconfig ./jsconfig.json",

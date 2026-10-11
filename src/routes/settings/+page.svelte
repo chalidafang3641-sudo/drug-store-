@@ -11,7 +11,7 @@
   onMount(() => {
     let checking = false;
     const timer = setInterval(async () => {
-      if (data.tab !== 'notify' || notificationSchedule?.state !== 'pending' || checking) return;
+      if (data.tab !== 'notify' || checking) return;
       checking = true;
       try {
         const response = await fetch('/api/notifications/schedule-status');
@@ -1319,11 +1319,9 @@
       {#if data.canAdmin && data.notification}
         <p role="status">
           {#if notificationSchedule?.state === 'active'}
-            ตารางส่งเวลา {notificationSchedule.time} น. ใช้งานแล้ว (เวลาไทย)
-          {:else if notificationSchedule?.state === 'pending'}
-            กำลังปรับตารางส่งเป็น {notificationSchedule.time} น.
+            ตัวตั้งเวลาเชื่อมต่ออยู่ · เวลาส่ง {notificationSchedule.time} น. (เวลาไทย)
           {:else}
-            ตารางส่งยังไม่ยืนยัน กรุณากดบันทึกเพื่อลองปรับตารางอีกครั้ง
+            ยังไม่พบการเชื่อมต่อล่าสุดจากตัวตั้งเวลา
           {/if}
         </p>
         <div class="page-sub">ตั้งค่าช่องทางและเวลาส่งสรุปยาใกล้หมดอายุประจำวัน</div>
@@ -1398,7 +1396,6 @@
         <form id="test-line" method="POST" action="?/testNotification">
           <input type="hidden" name="channel" value="line" />
         </form>
-        <p class="hint notify-setup-note">เวลาส่งอาจล่าช้าภายในชั่วโมงตามบริการตั้งเวลา</p>
       {:else}
         <p class="empty">เฉพาะผู้ดูแลระบบเท่านั้นที่ตั้งค่าการแจ้งเตือนได้</p>
       {/if}

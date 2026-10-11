@@ -1,45 +1,41 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { deploymentCrons, notificationCron } from '../src/lib/server/notification-cron-config.js';
-import { notificationScheduleStatus, syncNotificationSchedule } from '../src/lib/server/notification-schedule-sync.js';
+import fs from 'node:fs';
+import { notificationScheduleStatus } from '../src/lib/server/notification-schedule-sync.js';
+import worker, { tick } from '../cloudflare/notification-cron/worker.js';
 
-test('converts Bangkok time, including UTC date rollover, to a single daily send job', () => {
-  assert.equal(notificationCron('20:37').schedule, '37 13 * * *');
-  assert.equal(notificationCron('00:10').schedule, '10 17 * * *');
-  assert.equal(notificationCron('07:00').schedule, '0 0 * * *');
-  assert.equal(deploymentCrons('20:37').length, 3);
-  assert.throws(() => notificationCron('24:00'));
+test('reports fresh scheduler contact, not a deployment or successful message', () => {
+  const now = new Date('2026-10-11T14:00:00Z');
+  const config = { notify_time: '21:00' };
+  assert.equal(notificationScheduleStatus(config, now).state, 'unavailable');
+  config.notification_scheduler_last_tick = '2026-10-11T13:59:00Z';
+  assert.equal(notificationScheduleStatus(config, now).state, 'active');
+  config.notify_time = '22:00';
+  assert.equal(notificationScheduleStatus(config, now).time, '22:00');
+  config.notification_scheduler_last_tick = '2026-10-11T13:55:00Z';
+  assert.equal(notificationScheduleStatus(config, now).state, 'unavailable');
 });
 
-test('verifies active cron, queues changed config, and reports failures without claiming success', async () => {
-  const originalFetch = globalThis.fetch;
-  const keys = ['NOTIFY_VERCEL_TOKEN', 'NOTIFY_VERCEL_PROJECT_ID', 'NOTIFY_VERCEL_TEAM_ID'];
-  const originalEnv = keys.map((key) => process.env[key]);
-  keys.forEach((key) => { process.env[key] = 'test'; });
-  const queries = [];
-  const posts = [];
-  let time = '20:37';
-  globalThis.fetch = async (url, options) => {
-    if (options.method === 'POST') {
-      posts.push(JSON.parse(options.body));
-      return Response.json({ id: 'dpl_new' });
-    }
-    return Response.json({ name: 'drug-store', crons: { deploymentId: 'dpl_current', definitions: deploymentCrons(time), disabledAt: null } });
-  };
-  try {
-    assert.equal((await syncNotificationSchedule({ notify_time: '20:37' }, async () => {})).state, 'active');
-    assert.equal(posts.length, 0);
-    const result = await syncNotificationSchedule({ notify_time: '21:15' }, async (...args) => queries.push(args));
-    assert.equal(result.state, 'pending');
-    assert.equal(posts[0].deploymentId, 'dpl_current');
-    assert.equal(posts[0].target, 'production');
-    assert.deepEqual(queries[0][1], ['dpl_new', '21:15']);
-    time = '21:15';
-    assert.equal((await notificationScheduleStatus({ notify_time: '21:15' })).state, 'active');
-    globalThis.fetch = async () => new Response('', { status: 403 });
-    assert.equal((await syncNotificationSchedule({ notify_time: '22:00' }, async () => {})).state, 'failed');
-  } finally {
-    globalThis.fetch = originalFetch;
-    keys.forEach((key, i) => { if (originalEnv[i] === undefined) delete process.env[key]; else process.env[key] = originalEnv[i]; });
-  }
+test('worker authenticates POST, refuses redirects and reports endpoint failures', async () => {
+  const env = { NOTIFICATION_URL: 'https://example.com/api/notifications/scheduled', NOTIFY_SCHEDULE_SECRET: 'test-only' };
+  await tick(env, async (_url, options) => {
+    assert.equal(options.method, 'POST');
+    assert.equal(options.headers.authorization, 'Bearer test-only');
+    assert.equal(options.redirect, 'error');
+    return Response.json({ ok: true, results: [] });
+  });
+  await assert.rejects(tick(env, async () => new Response('', { status: 401 })), /401/);
+  await assert.rejects(tick(env, async () => Response.json({ ok: false })), /dispatch failed/);
+  await assert.rejects(tick({ ...env, NOTIFY_SCHEDULE_SECRET: '' }), /secret missing/);
+  assert.equal(worker.fetch().status, 404);
+});
+
+test('only Cloudflare schedules notifications; Vercel retains unrelated keepalives', () => {
+  const vercel = JSON.parse(fs.readFileSync(new URL('../vercel.json', import.meta.url)));
+  assert.equal(vercel.crons.length, 2);
+  assert.ok(vercel.crons.every(job => !job.path.includes('notifications')));
+  const cloudflare = JSON.parse(fs.readFileSync(new URL('../cloudflare/notification-cron/wrangler.jsonc', import.meta.url)));
+  assert.deepEqual(cloudflare.triggers.crons, ['* * * * *']);
+  const source = fs.readFileSync(new URL('../server/index.js', import.meta.url), 'utf8');
+  assert.ok(!source.includes('syncNotificationSchedule'));
 });

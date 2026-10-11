@@ -4,11 +4,11 @@ import { dispatchScheduledNotifications } from '$lib/server/notification-schedul
 import { runNotificationDispatch } from '../../../../../server/index.js';
 
 export async function POST({ request }) {
-  return handleScheduledRequest(request, process.env.NOTIFY_SCHEDULE_SECRET, 'manual');
+  return handleScheduledRequest(request, process.env.NOTIFY_SCHEDULE_SECRET, 'cloudflare');
 }
 
-export async function GET({ request }) {
-  return handleScheduledRequest(request, process.env.CRON_SECRET, 'vercel');
+export async function GET() {
+  return Response.json({ ok: false }, { status: 405, headers: { allow: 'POST' } });
 }
 
 async function handleScheduledRequest(request, secret, source) {
@@ -16,6 +16,7 @@ async function handleScheduledRequest(request, secret, source) {
     return Response.json({ ok: false }, { status: 401 });
   }
   try {
+    await pool.query('UPDATE app_config SET notification_scheduler_last_tick = now() WHERE id = TRUE');
     const config = configOut(await readConfig(), false).notification;
     const result = await dispatchScheduledNotifications({
       config,
