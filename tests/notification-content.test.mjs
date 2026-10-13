@@ -1,7 +1,21 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { runInNewContext } from 'node:vm';
 import { expiryNotificationSections, notificationExpiryWhere, splitNotificationText, validExpiryDays } from '../src/lib/server/notification-content.js';
+
+test('manual test and scheduled messages have identical content', () => {
+  const source = readFileSync(new URL('../server/index.js', import.meta.url), 'utf8');
+  const formatter = source.slice(source.indexOf('function notificationLines'), source.indexOf('async function sendTelegramMessage')).replace('export function', 'function');
+  const build = runInNewContext(`${formatter}; buildNotificationMessage`, { expiryNotificationSections });
+  for (const near of [[], [{ days: 2, drug_name: 'Medicine', expiry_date: '2026-10-15', qty: 3 }]]) {
+    const input = { hospitalName: 'Hospital', near, low: [{ name: 'Stock', total: 1, min_qty: 2 }] };
+    const actual = build({ ...input, test: true });
+    assert.equal(actual, build({ ...input, test: false }));
+    assert.match(actual, /^Hospital - สรุปแจ้งเตือนยา/);
+    assert.doesNotMatch(actual, /ทดสอบ|เชื่อมต่อสำเร็จ/);
+  }
+});
 
 test('expiry sections have independent counts and ascending expiry order without mutating input', () => {
   const items = [30, -1, 0, -10, 2].map((days) => ({ days, drug_name: `drug${days}`, expiry_date: '2026-10-13', qty: 12, lot_no: 'A', location_name: 'Shelf' }));

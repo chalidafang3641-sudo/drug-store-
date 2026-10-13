@@ -649,13 +649,9 @@ function notificationLines(title, rows = []) {
   return rows.filter(Boolean).map((row) => `- ${row}`).join('\n');
 }
 
-export function buildNotificationMessage({ hospitalName, near = [], low = [], test = false }) {
-  const header = `${hospitalName || 'The Watcher'}${test ? ' - ข้อความทดสอบ' : ' - สรุปแจ้งเตือนยา'}`;
+export function buildNotificationMessage({ hospitalName, near = [], low = [] }) {
+  const header = `${hospitalName || 'The Watcher'} - สรุปแจ้งเตือนยา`;
   const lines = [header];
-
-  if (test) {
-    lines.push('ระบบส่งข้อความเชื่อมต่อสำเร็จ');
-  }
 
   lines.push(expiryNotificationSections(near));
 
@@ -732,8 +728,7 @@ export async function runNotificationDispatch(options = {}) {
   const text = options.text || buildNotificationMessage({
     hospitalName: config.hospital_name,
     near: near.rows.map(mapItem),
-    low: low.data || [],
-    test: !!options.test
+    low: low.data || []
   });
 
   const channels = options.channel ? [options.channel] : ['line', 'telegram'].filter((channel) => notification[`${channel}_enabled`]);
