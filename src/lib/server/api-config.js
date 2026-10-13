@@ -29,6 +29,8 @@ export function configOut(config, includeSecrets = true) {
       telegram_enabled: config.telegram_enabled ?? config.notification_channel === 'telegram',
       line_enabled: config.line_enabled ?? config.notification_channel === 'line',
       notify_time: config.notify_time,
+      expiry_days: config.notify_expiry_days ?? 30,
+      include_expired: config.notify_include_expired ?? true,
       telegram_chat_id: config.telegram_chat_id,
       has_telegram: !!config.telegram_bot_token,
       has_line: !!config.line_token,

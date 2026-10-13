@@ -22,3 +22,16 @@ Normal changes to notification time or credentials require only saving settings,
 ## Tests
 
 Run `node --test tests/notification-schedule.test.mjs tests/notification-schedule-sync.test.mjs`, `npm run check:svelte`, and `npm run build`. Worker tests use mocked HTTP responses and do not send production notifications.
+# Notification content settings
+
+Apply `db/migrations/20261013_notification_expiry.sql` before deploying this version.
+Notification expiry criteria are independent of Dashboard thresholds:
+`notify_expiry_days` defaults to 30 (integer 0-3650), and
+`notify_include_expired` defaults to true. The settings page offers presets and
+custom days. Active lots with positive quantity and expiry on or before the
+Bangkok calendar date plus the configured days are included. Turning off expired
+lots adds a lower bound of today; lots expiring today are always included.
+The expiry query has no row limit. Messages are split into parts of at most
+4000 UTF-16 code units without dropping text. Low-stock content remains unchanged.
+Existing delivery claims and schedule times are unchanged. A partial provider
+failure is not automatically retried; some parts may already have arrived.

@@ -31,6 +31,8 @@ CREATE TABLE IF NOT EXISTS app_config (
   telegram_chat_id TEXT NOT NULL DEFAULT '',
   line_token TEXT NOT NULL DEFAULT '',
   notify_time TEXT NOT NULL DEFAULT '08:00',
+  notify_expiry_days INTEGER NOT NULL DEFAULT 30 CHECK (notify_expiry_days BETWEEN 0 AND 3650),
+  notify_include_expired BOOLEAN NOT NULL DEFAULT TRUE,
   display_be BOOLEAN NOT NULL DEFAULT FALSE,
   app_version TEXT NOT NULL DEFAULT '1.0',
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),

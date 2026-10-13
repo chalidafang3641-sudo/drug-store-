@@ -303,6 +303,8 @@ export const actions = {
       telegram_enabled: form.get('telegram_enabled') === 'on',
       line_enabled: form.get('line_enabled') === 'on',
       notify_time: String(form.get('notify_time') || '08:00'),
+      expiry_days: form.get('expiry_days') === null || form.get('expiry_days') === '' ? NaN : Number(form.get('expiry_days')),
+      include_expired: form.get('include_expired') === 'on',
       telegram_chat_id: String(form.get('telegram_chat_id') || '').trim(),
       telegram_bot_token: String(form.get('telegram_bot_token') || '').trim(),
       line_token: String(form.get('line_token') || '').trim(),

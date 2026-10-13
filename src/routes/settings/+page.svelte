@@ -7,6 +7,9 @@
   export let data;
   export let form;
   let notificationSchedule;
+  const expiryPresets = [30, 60, 90, 120];
+  let expiryChoice = expiryPresets.includes(data.notification?.expiry_days ?? 30)
+    ? String(data.notification?.expiry_days ?? 30) : 'custom';
   $: notificationSchedule = data.notificationSchedule;
   onMount(() => {
     let checking = false;
@@ -1341,6 +1344,19 @@
               <span>เวลาส่ง</span>
               <input name="notify_time" type="time" value={data.notification.notify_time || '08:00'} />
             </label>
+            <label>
+              <span>แจ้งเตือนล่วงหน้าก่อนหมดอายุ</span>
+              <select bind:value={expiryChoice}>
+                {#each expiryPresets as days}<option value={String(days)}>{days} วัน</option>{/each}
+                <option value="custom">กำหนดเอง</option>
+              </select>
+            </label>
+            {#if expiryChoice === 'custom'}
+              <label><span>จำนวนวันล่วงหน้า</span><input name="expiry_days" type="number" min="0" max="3650" step="1" required value={data.notification.expiry_days ?? 30} /></label>
+            {:else}
+              <input type="hidden" name="expiry_days" value={expiryChoice} />
+            {/if}
+            <label class="check-line"><input type="checkbox" name="include_expired" checked={data.notification.include_expired ?? true} /><span>รวมยาที่หมดอายุแล้ว</span></label>
           </div>
 
             <section class="panel notify-channel-block">

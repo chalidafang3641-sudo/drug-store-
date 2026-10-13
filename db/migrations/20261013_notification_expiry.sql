@@ -1,0 +1,3 @@
+ALTER TABLE app_config
+  ADD COLUMN IF NOT EXISTS notify_expiry_days INTEGER NOT NULL DEFAULT 30 CHECK (notify_expiry_days BETWEEN 0 AND 3650),
+  ADD COLUMN IF NOT EXISTS notify_include_expired BOOLEAN NOT NULL DEFAULT TRUE;

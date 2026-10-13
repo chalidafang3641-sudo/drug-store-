@@ -1,4 +1,5 @@
 import cors from 'cors';
+import { notificationExpiryWhere, splitNotificationText, validExpiryDays } from '../src/lib/server/notification-content.js';
 import express from 'express';
 import { pathToFileURL } from 'node:url';
 import { Readable } from 'node:stream';
@@ -600,6 +601,12 @@ async function apiGetNotifyConfig() {
 }
 
 async function apiSaveNotifyConfig(patch = {}) {
+  if (patch.expiry_days !== undefined && !validExpiryDays(patch.expiry_days)) {
+    return { status: 'error', message: 'จำนวนวันต้องเป็นจำนวนเต็มตั้งแต่ 0 ถึง 3650' };
+  }
+  if (patch.include_expired !== undefined && typeof patch.include_expired !== 'boolean') {
+    return { status: 'error', message: 'ค่ารวมยาหมดอายุไม่ถูกต้อง' };
+  }
   if (patch.notify_time !== undefined && !/^([01]\d|2[0-3]):[0-5]\d$/.test(patch.notify_time)) {
     return { status: 'error', message: 'เวลาส่งไม่ถูกต้อง' };
   }
@@ -609,6 +616,8 @@ async function apiSaveNotifyConfig(patch = {}) {
          notification_channel = COALESCE($2, notification_channel),
          telegram_enabled = COALESCE($9, telegram_enabled),
          line_enabled = COALESCE($10, line_enabled),
+         notify_expiry_days = COALESCE($11, notify_expiry_days),
+         notify_include_expired = COALESCE($12, notify_include_expired),
          notify_time = COALESCE($3, notify_time),
          telegram_chat_id = COALESCE($4, telegram_chat_id),
          telegram_bot_token = CASE WHEN $6 THEN '' WHEN $5::text <> '' THEN $5 ELSE telegram_bot_token END,
@@ -624,7 +633,9 @@ async function apiSaveNotifyConfig(patch = {}) {
       patch.line_token || '',
       !!patch.clear_line_token,
       patch.telegram_enabled ?? null,
-      patch.line_enabled ?? null
+      patch.line_enabled ?? null,
+      patch.expiry_days ?? null,
+      patch.include_expired ?? null
     ]
   );
   const schedule = notificationScheduleStatus(await readConfig());
@@ -638,7 +649,7 @@ function notificationLines(title, rows = []) {
   return rows.filter(Boolean).map((row) => `- ${row}`).join('\n');
 }
 
-function buildNotificationMessage({ hospitalName, near = [], low = [], test = false }) {
+export function buildNotificationMessage({ hospitalName, near = [], low = [], test = false }) {
   const header = `${hospitalName || 'The Watcher'}${test ? ' - ข้อความทดสอบ' : ' - สรุปแจ้งเตือนยา'}`;
   const lines = [header];
 
@@ -647,11 +658,11 @@ function buildNotificationMessage({ hospitalName, near = [], low = [], test = fa
   }
 
   if (near.length) {
-    lines.push(`ใกล้หมดอายุ ${near.length} รายการ`);
+    lines.push(`ยาใกล้หมดอายุ / หมดอายุ ${near.length} รายการ`);
     lines.push(
       notificationLines(
         'near',
-        near.slice(0, 8).map((item) => {
+        near.map((item) => {
           const days = item.days < 0 ? 'หมดอายุแล้ว' : `เหลือ ${item.days} วัน`;
           const lot = item.lot_no ? ` Lot ${item.lot_no}` : '';
           return `${item.drug_name}${lot} @ ${item.location_name || '-'} (${days})`;
@@ -707,7 +718,7 @@ async function sendLineBroadcast(lineToken, text) {
       authorization: `Bearer ${lineToken}`
     },
     body: JSON.stringify({
-      messages: [{ type: 'text', text: text.slice(0, 5000) }]
+      messages: [{ type: 'text', text }]
     })
   });
 
@@ -726,15 +737,16 @@ export async function runNotificationDispatch(options = {}) {
     return { status: 'success', skipped: true, message: 'ปิดการแจ้งเตือนอยู่' };
   }
 
-  const dashboard = await apiGetDashboard();
-  if (dashboard.status !== 'success') {
-    return dashboard;
-  }
+  const near = await pool.query(
+    `${itemSelectSql(notificationExpiryWhere())} ORDER BY i.expiry_date ASC, d.name ASC, i.id ASC`,
+    [notification.expiry_days, notification.include_expired]
+  );
+  const low = await apiGetLowStock();
 
   const text = options.text || buildNotificationMessage({
     hospitalName: config.hospital_name,
-    near: dashboard.near || [],
-    low: dashboard.low_stock || [],
+    near: near.rows.map(mapItem),
+    low: low.data || [],
     test: !!options.test
   });
 
@@ -745,10 +757,16 @@ export async function runNotificationDispatch(options = {}) {
   if (!channels.length) return { status: 'success', skipped: true, message: 'ปิดทุกช่องทางอยู่' };
   const results = await Promise.all(channels.map(async (channel) => {
     try {
-      const result = channel === 'line'
-        ? await sendLineBroadcast(notification.line_token, text)
-        : await sendTelegramMessage(notification.telegram_bot_token, notification.telegram_chat_id, text);
-      return { channel, ...result };
+      let sentParts = 0;
+      for (const part of splitNotificationText(text)) {
+        if (channel === 'telegram' && sentParts) await new Promise((resolve) => setTimeout(resolve, 1100));
+        const result = channel === 'line'
+          ? await sendLineBroadcast(notification.line_token, part)
+          : await sendTelegramMessage(notification.telegram_bot_token, notification.telegram_chat_id, part);
+        if (result.status !== 'success') return { channel, ...result, sentParts };
+        sentParts++;
+      }
+      return { channel, status: 'success', sentParts };
     } catch {
       return { channel, status: 'error', message: 'เชื่อมต่อผู้ให้บริการไม่สำเร็จ' };
     }
