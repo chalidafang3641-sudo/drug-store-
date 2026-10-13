@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import { daysUntilExpiry } from './expiry-date.js';
 import path from 'node:path';
 import { put } from '@vercel/blob';
 import { pool } from './postgres.js';
@@ -156,11 +157,8 @@ export function fileUrl(id) {
   return `${PUBLIC_BASE_URL}/uploads/${encodeURIComponent(id)}`;
 }
 
-export function daysTo(value) {
-  const exp = new Date(`${dateOnly(value)}T00:00:00Z`);
-  const nowDate = new Date();
-  const today = new Date(Date.UTC(nowDate.getFullYear(), nowDate.getMonth(), nowDate.getDate()));
-  return Math.round((exp.getTime() - today.getTime()) / 86400000);
+export function daysTo(value, now = new Date()) {
+  return daysUntilExpiry(dateOnly(value), now);
 }
 
 export function dateOnly(value) {
