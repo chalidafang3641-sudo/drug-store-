@@ -1,7 +1,22 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { notificationExpiryWhere, splitNotificationText, validExpiryDays } from '../src/lib/server/notification-content.js';
+import { expiryNotificationSections, notificationExpiryWhere, splitNotificationText, validExpiryDays } from '../src/lib/server/notification-content.js';
+
+test('expiry sections have independent counts and ascending expiry order without mutating input', () => {
+  const items = [30, -1, 0, -10, 2].map((days) => ({ days, drug_name: `drug${days}`, expiry_date: '2026-10-13', qty: 12, lot_no: 'A', location_name: 'Shelf' }));
+  const message = expiryNotificationSections(items);
+  assert.match(message, /ใกล้หมดอายุ 3 รายการ/);
+  assert.match(message, /หมดอายุแล้ว 2 รายการ/);
+  assert.ok(message.indexOf('drug0') < message.indexOf('drug2'));
+  assert.ok(message.indexOf('drug2') < message.indexOf('drug30'));
+  assert.ok(message.indexOf('drug-10') < message.indexOf('drug-1 Lot'));
+  assert.match(message, /หมดอายุวันนี้/);
+  assert.match(message, /หมดอายุแล้ว 10 วัน/);
+  assert.match(message, /คงเหลือ 12/);
+  assert.deepEqual(items.map((item) => item.days), [30, -1, 0, -10, 2]);
+  assert.equal(expiryNotificationSections([]), 'ใกล้หมดอายุ 0 รายการ\n\nหมดอายุแล้ว 0 รายการ');
+});
 
 test('expiry days accept zero and custom integers but reject malformed values', () => {
   for (const value of [0, 7, 30, 45, 3650]) assert.equal(validExpiryDays(value), true);

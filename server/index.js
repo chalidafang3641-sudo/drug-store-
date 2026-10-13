@@ -1,5 +1,5 @@
 import cors from 'cors';
-import { notificationExpiryWhere, splitNotificationText, validExpiryDays } from '../src/lib/server/notification-content.js';
+import { expiryNotificationSections, notificationExpiryWhere, splitNotificationText, validExpiryDays } from '../src/lib/server/notification-content.js';
 import express from 'express';
 import { pathToFileURL } from 'node:url';
 import { Readable } from 'node:stream';
@@ -657,21 +657,7 @@ export function buildNotificationMessage({ hospitalName, near = [], low = [], te
     lines.push('ระบบส่งข้อความเชื่อมต่อสำเร็จ');
   }
 
-  if (near.length) {
-    lines.push(`ยาใกล้หมดอายุ / หมดอายุ ${near.length} รายการ`);
-    lines.push(
-      notificationLines(
-        'near',
-        near.map((item) => {
-          const days = item.days < 0 ? 'หมดอายุแล้ว' : `เหลือ ${item.days} วัน`;
-          const lot = item.lot_no ? ` Lot ${item.lot_no}` : '';
-          return `${item.drug_name}${lot} @ ${item.location_name || '-'} (${days})`;
-        })
-      )
-    );
-  } else if (!test) {
-    lines.push('วันนี้ไม่มียาใกล้หมดอายุ');
-  }
+  lines.push(expiryNotificationSections(near));
 
   if (low.length) {
     lines.push(`สต็อกต่ำ ${low.length} รายการ`);
