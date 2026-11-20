@@ -104,7 +104,7 @@ export async function GET({ locals, url }) {
           </select><noscript><button>แสดง</button></noscript>
         </form>
         <div class="pager-position">
-          <strong aria-label="${subtitle}">${start}–${Math.min(page * size, total)} / ${total}</strong>
+          <strong aria-label="${subtitle}">${total ? `${start}–${Math.min(page * size, total)} จาก ${total} รายการ` : 'ไม่มีรายการ'}</strong>
         <div class="pager-steps">
           <a class="pager-arrow" aria-label="ก่อนหน้า" ${page > 1 ? `href="${link(page - 1)}"` : 'aria-disabled="true"'}>‹</a>
           <span aria-current="page" aria-label="หน้า ${page} จาก ${pages}"><b>${page}</b>/${pages}</span>

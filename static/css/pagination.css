@@ -74,3 +74,19 @@
 .size-options a { text-decoration: none; border-radius: 7px; white-space: nowrap; }
 .size-options a:hover { background: var(--brand-soft); }
 .size-menu summary:focus-visible { outline: 2px solid var(--brand); }
+
+.pager {
+  display: grid;
+  grid-template-columns: minmax(max-content, 1fr) auto minmax(max-content, 1fr);
+}
+.pager > :first-child { justify-self: start; }
+.pager-position { display: contents; }
+.pager-position strong { text-align: center; white-space: normal; line-height: 1.25; }
+.pager-steps { justify-self: end; }
+.pager-print { grid-column: 1 / -1; justify-self: end; }
+@media (max-width: 480px) {
+  .pager { grid-template-columns: max-content minmax(0, 1fr) max-content; }
+  .size-menu summary { gap: 4px; padding-inline: 5px; }
+  .pager-arrow { width: 26px; }
+}
+@media print { .pager { display: none; } }

@@ -201,7 +201,7 @@
         </div>
       </details>
       <div class="pager-position">
-        <strong>{data.total ? (data.page - 1) * data.size + 1 : 0}–{Math.min(data.page * data.size, data.total)} / {data.total}</strong>
+        <strong>{#if data.total}{(data.page - 1) * data.size + 1}–{Math.min(data.page * data.size, data.total)} จาก {data.total} รายการ{:else}ไม่มีรายการ{/if}</strong>
       <div class="pager-steps">
         <a class="pager-arrow" aria-label="ก่อนหน้า" aria-disabled={data.page <= 1} href={data.page > 1 ? `/dashboard?filter=${filter}&size=${data.size}&page=${data.page - 1}` : undefined}>‹</a>
         <span aria-current="page" aria-label={`หน้า ${data.page} จาก ${data.pages}`}><b>{data.page}</b>/{data.pages}</span>
