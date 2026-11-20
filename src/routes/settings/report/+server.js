@@ -107,7 +107,7 @@ export async function GET({ locals, url }) {
           <strong aria-label="${subtitle}">${start}–${Math.min(page * size, total)} / ${total}</strong>
         <div class="pager-steps">
           <a class="pager-arrow" aria-label="ก่อนหน้า" ${page > 1 ? `href="${link(page - 1)}"` : 'aria-disabled="true"'}>‹</a>
-          <span aria-current="page">หน้า <b>${page}</b> จาก ${pages}</span>
+          <span aria-current="page" aria-label="หน้า ${page} จาก ${pages}"><b>${page}</b>/${pages}</span>
           <a class="pager-arrow" aria-label="ถัดไป" ${page < pages ? `href="${link(page + 1)}"` : 'aria-disabled="true"'}>›</a>
         </div>
         </div>
