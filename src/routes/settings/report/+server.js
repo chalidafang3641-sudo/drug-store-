@@ -1,3 +1,4 @@
+import writeXlsxFile from 'write-excel-file/node';
 import { requirePermission } from '$lib/server/permissions.js';
 import { handleApiPayload } from '../../../../server/index.js';
 
@@ -95,7 +96,33 @@ export async function GET({ locals, url }) {
 
   const config = await readConfig();
   const { rows } = await pool.query(itemSelectSql(notificationExpiryWhere()), [config.expiry_medium_days, true]);
-  const groups = expiryByLocation(rows.map(mapItem)).map(({ name, items }) => ({
+  const locations = expiryByLocation(rows.map(mapItem));
+  const columns = ['ลำดับ', 'ยา', 'Lot', 'วันหมดอายุ', 'เหลือ (วัน)', 'จำนวน'];
+  if (url.searchParams.get('format') === 'xlsx') {
+    const heading = value => ({ type: String, value, fontWeight: 'bold', backgroundColor: '#E9F3ED' });
+    const sheet = [[heading(hospitalName)], [heading('รายงานยาใกล้หมดอายุ')], columns.map(heading)];
+    for (const { name, items } of locations) {
+      sheet.push([{ ...heading(name), span: columns.length }]);
+      items.forEach((item, index) => sheet.push([
+        { type: Number, value: index + 1 },
+        { type: String, value: item.drug_name },
+        { type: String, value: item.lot_no },
+        { type: Date, value: new Date(item.expiry_date + 'T00:00:00Z'), format: 'dd/mm/yyyy' },
+        item.days < 0 ? { type: String, value: 'หมดอายุ' } : { type: Number, value: item.days },
+        { type: Number, value: item.qty }
+      ]));
+    }
+    const buffer = await writeXlsxFile(sheet, {
+      buffer: true, sheet: 'รายงานยาหมดอายุ',
+      columns: [10, 46, 22, 18, 16, 14].map(width => ({ width }))
+    });
+    return new Response(new Uint8Array(buffer), { headers: {
+      'content-type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'content-disposition': 'attachment; filename="expiry-report.xlsx"',
+      'cache-control': 'private, no-store'
+    } });
+  }
+  const groups = locations.map(({ name, items }) => ({
     name,
     rows: items.map((item, index) => [index + 1,
       item.drug_name, item.lot_no, formatDate(item.expiry_date),
@@ -108,7 +135,7 @@ export async function GET({ locals, url }) {
       hospitalName,
       title: 'รายงานยาใกล้หมดอายุ',
       subtitle: `พิมพ์เมื่อ ${printedAt} · รวม ${rows.length} รายการ`,
-      columns: ['ลำดับ', 'ยา', 'Lot', 'วันหมดอายุ', 'เหลือ (วัน)', 'จำนวน'],
+      columns,
       groups
     }),
     { headers: { 'content-type': 'text/html; charset=utf-8' } }

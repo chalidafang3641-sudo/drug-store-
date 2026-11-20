@@ -1550,6 +1550,11 @@
           <i class="bi bi-printer"></i>
           <span>{reportPending ? 'กำลังเปิดรายงาน...' : 'สร้างรายงานและพิมพ์'}</span>
         </button>
+        {#if reportType === 'near'}
+          <a class="btn-ghost report-submit" href="/settings/report?kind=near&format=xlsx" download="expiry-report.xlsx">
+            <i class="bi bi-download"></i> ดาวน์โหลด Excel
+          </a>
+        {/if}
         <p class="hint report-hint">ในหน้าต่างพิมพ์ เลือกปลายทางเป็น "บันทึกเป็น PDF" เพื่อได้ไฟล์ PDF</p>
       </form>
     </section>

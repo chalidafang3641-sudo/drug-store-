@@ -54,6 +54,14 @@ test('expiry print groups the complete selection, escapes values and orders lots
       assert.ok(statuses.slice(firstUpcoming).every(status => status !== 'หมดอายุ'));
     }
     assert.match(html, /window\.print/);
+    const download = await GET({
+      locals: { user: { permissions: ['view'] } },
+      url: new URL('http://localhost/settings/report?kind=near&format=xlsx')
+    });
+    assert.equal(download.status, 200);
+    assert.match(download.headers.get('content-disposition'), /attachment; filename="expiry-report.xlsx"/);
+    const workbook = Buffer.from(await download.arrayBuffer());
+    assert.equal(workbook.readUInt32LE(), 0x04034b50);
   } finally {
     await vite.close();
     rmSync(dir, { recursive: true, force: true });
