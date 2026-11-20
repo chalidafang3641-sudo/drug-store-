@@ -12,30 +12,18 @@
   font-size: 14px;
   font-variant-numeric: tabular-nums;
 }
-.pager-info, .pager label, .pager-steps { display: flex; align-items: center; gap: 8px; }
-.pager-info { flex: 1 1 auto; flex-wrap: wrap; gap: 8px 20px; }
-.pager-info strong { font-weight: 600; }
-.page-size {
-  display: inline-flex;
-  align-items: center;
-  white-space: nowrap;
-  border-radius: 10px;
-  padding: 2px;
-  background: var(--bg, #f1f5f2);
-}
-.page-size-label { padding: 0 5px; font-size: .88em; }
-.page-size a {
-  display: grid;
-  place-items: center;
-  min-width: 32px;
-  min-height: 40px;
+.pager-position, .pager-steps { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.pager-position { margin-inline-start: auto; }
+.pager-position strong { font-weight: 600; }
+.pager select {
+  min-height: 42px;
+  border: 1px solid var(--line, #cbdad1);
   border-radius: 8px;
-  font-weight: 600;
-  text-decoration: none;
+  padding: 4px 6px;
+  background: var(--card, white);
   color: inherit;
+  font: inherit;
 }
-.page-size a:hover { background: var(--brand-soft, #dfebe4); }
-.page-size a[aria-current="true"] { background: var(--brand-ink, #245338); color: var(--card, white); }
 .pager-steps {
   padding: 3px;
   border-radius: 12px;
@@ -57,31 +45,11 @@
 .pager-arrow[aria-disabled="true"] { opacity: .32; }
 .pager a:focus-visible, .pager select:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
 .pager-print { color: var(--brand-ink, #245338); text-underline-offset: 3px; }
+.pager-inline { flex-wrap: nowrap; padding: 5px 8px; gap: 4px; overflow-x: auto; }
 @media (max-width: 560px) {
-  .pager { padding: 10px 12px; gap: 8px; }
-  .pager-info { flex-basis: 100%; justify-content: space-between; }
-  .pager-steps { flex: 1 1 auto; justify-content: space-between; }
+  .pager { padding: 5px; gap: 4px; font-size: 13px; }
+  .pager-position, .pager-steps { gap: 3px; }
+  .pager-arrow { width: 30px; }
+  .pager-print { flex-basis: 100%; }
 }
 @media print { .pager { display: none; } }
-
-.pager-inline {
-  flex-wrap: nowrap;
-  gap: 6px;
-  padding: 5px 8px;
-  overflow-x: auto;
-  white-space: nowrap;
-}
-.pager-inline .pager-info { flex: 1 0 auto; flex-wrap: nowrap; justify-content: space-between; gap: 6px; }
-.pager-inline label, .pager-inline .pager-steps { gap: 2px; }
-.pager-inline .pager-steps { flex: 0 0 auto; padding: 1px; }
-@media (max-width: 560px) {
-  .pager-inline { font-size: 13px; }
-  .pager-inline .page-size a { min-width: 26px; }
-  .pager-inline .page-size-label { padding: 0 2px; }
-  .pager-inline { gap: 3px; padding-inline: 4px; }
-  .pager-inline .pager-info { gap: 3px; }
-  .pager-inline .pager-arrow { width: 26px; }
-}
-@media (max-width: 345px) {
-  .pager-inline .page-size-label { display: none; }
-}

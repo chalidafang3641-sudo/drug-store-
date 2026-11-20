@@ -97,16 +97,19 @@ export async function GET({ locals, url }) {
       subtitle = `แสดง ${start}–${Math.min(page * size, total)} จาก ${total} รายการ`;
       const link = n => `?kind=stock&amp;page=${n}&amp;size=${size}`;
       navigation = `<nav class="pager" aria-label="หน้ารายงานสต็อก">
-        <div class="pager-info"><strong>${subtitle}</strong>
-          <div class="page-size" role="group" aria-label="จำนวนรายการต่อหน้า">
-            <span class="page-size-label">ต่อหน้า</span>
-            ${[10,25,50,100].map(n => `<a href="?kind=stock&amp;size=${n}" aria-label="${n} รายการต่อหน้า"${n === size ? ' aria-current="true"' : ''}>${n}</a>`).join('')}
-          </div>
-        </div>
+        <form method="get">
+          <input type="hidden" name="kind" value="stock">
+          <select name="size" aria-label="จำนวนรายการต่อหน้า" onchange="this.form.requestSubmit()">
+            ${[10,25,50,100].map(n => `<option value="${n}"${n === size ? ' selected' : ''}>${n} / หน้า</option>`).join('')}
+          </select><noscript><button>แสดง</button></noscript>
+        </form>
+        <div class="pager-position">
+          <strong aria-label="${subtitle}">${start}–${Math.min(page * size, total)} / ${total}</strong>
         <div class="pager-steps">
           <a class="pager-arrow" aria-label="ก่อนหน้า" ${page > 1 ? `href="${link(page - 1)}"` : 'aria-disabled="true"'}>‹</a>
           <span aria-current="page">หน้า <b>${page}</b> จาก ${pages}</span>
           <a class="pager-arrow" aria-label="ถัดไป" ${page < pages ? `href="${link(page + 1)}"` : 'aria-disabled="true"'}>›</a>
+        </div>
         </div>
         <a class="pager-print" href="?kind=stock&amp;print=all" target="_blank" rel="noreferrer">พิมพ์รายงานทุกหน้า</a>
       </nav>`;
