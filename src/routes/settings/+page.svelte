@@ -73,7 +73,7 @@
     },
     {
       title: 'รายงานและการส่งออก',
-      body: 'พิมพ์รายงานยาใกล้หมดอายุหรือดาวน์โหลด Excel ได้จากหน้าภาพรวม ส่วนรายงานสต็อกคงเหลือพิมพ์ได้จากเมนูพิมพ์รายงาน'
+      body: 'ดาวน์โหลด Excel ได้จากหน้าภาพรวม ส่วนรายงานยาใกล้หมดอายุและสต็อกคงเหลือพิมพ์ได้จากเมนูพิมพ์รายงาน'
     }
   ];
 
@@ -236,6 +236,8 @@
     if (locationId) params.set('location_id', locationId);
     return `/settings?${params.toString()}`;
   }
+
+  let reportKind = 'near';
 
   function openReport() {
     reportPending = true;
@@ -1538,11 +1540,27 @@
   {:else if data.tab === 'report'}
     <section class="panel">
       <form class="report-legacy" method="GET" action="/settings/report" target="_blank" rel="noreferrer" onsubmit={openReport}>
-        <input type="hidden" name="kind" value="stock" />
-        <h2>รายงานสต็อกคงเหลือทั้งหมด</h2>
+        <div class="field">
+          <label for="report-kind">ประเภทรายงาน</label>
+          <select id="report-kind" name="kind" bind:value={reportKind}>
+            <option value="near">ยาใกล้หมดอายุ</option>
+            <option value="stock">สต็อกคงเหลือทั้งหมด</option>
+          </select>
+        </div>
+        {#if reportKind === 'near'}
+          <div class="field">
+            <label for="report-filter">ช่วงวันหมดอายุ</label>
+            <select id="report-filter" name="filter">
+              <option value="all">ทุกช่วงตามเกณฑ์</option>
+              <option value="crit">ภายใน {data.reportThresholds?.critical ?? 35} วัน</option>
+              <option value="high">{(data.reportThresholds?.critical ?? 35) + 1}–{data.reportThresholds?.high ?? 60} วัน</option>
+              <option value="med">{(data.reportThresholds?.high ?? 60) + 1}–{data.reportThresholds?.medium ?? 120} วัน</option>
+            </select>
+          </div>
+        {/if}
         <button class="btn-brand report-submit" type="submit">
           <i class="bi bi-printer"></i>
-          <span>{reportPending ? 'กำลังเปิดรายงาน...' : 'เปิดรายงานสต็อก'}</span>
+          <span>{reportPending ? 'กำลังเปิดรายงาน...' : reportKind === 'near' ? 'พิมพ์รายงาน' : 'เปิดรายงานสต็อก'}</span>
         </button>
         <p class="hint report-hint">ในหน้าต่างพิมพ์ เลือกปลายทางเป็น "บันทึกเป็น PDF" เพื่อได้ไฟล์ PDF</p>
       </form>

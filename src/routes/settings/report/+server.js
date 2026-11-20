@@ -37,13 +37,12 @@ function htmlDocument({ hospitalName, title, subtitle, columns, rows = [], group
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>${esc(title)}</title>
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600&display=swap" rel="stylesheet" />
+    ${navigation ? '<link rel="stylesheet" href="/css/pagination.css">' : ''}
     <style>
       @page { size: A4; margin: 14mm; }
       body { margin: 0; padding: 24px; font-family: "Sarabun", sans-serif; color: #19241e; }
       h1 { margin: 0 0 2px; font-size: 18px; }
       .sub { margin: 0 0 14px; color: #5a6b62; font-size: 12px; }
-      nav, nav form { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
-      nav { margin-bottom: 1rem; }
       @media print { nav { display: none; } }
       table { width: 100%; border-collapse: collapse; font-size: 12px; }
       th, td { border: 1px solid #cfdcd4; padding: 6px 8px; text-align: left; vertical-align: top; }
@@ -56,7 +55,7 @@ function htmlDocument({ hospitalName, title, subtitle, columns, rows = [], group
   </head>
   <body>
     <h1>${esc(hospitalName)}</h1>
-    <div class="sub">${esc(title)} · ${esc(subtitle)}</div>
+    <div class="sub">${esc(title)}${subtitle ? ` · ${esc(subtitle)}` : ''}</div>
     ${navigation}
     <table>
       <thead>
@@ -96,14 +95,19 @@ export async function GET({ locals, url }) {
       const start = total ? (page - 1) * size + 1 : 0;
       subtitle = `แสดง ${start}–${Math.min(page * size, total)} จาก ${total} รายการ`;
       const link = n => `?kind=stock&amp;page=${n}&amp;size=${size}`;
-      navigation = `<nav aria-label="หน้ารายงานสต็อก">
-        <form method="get"><input type="hidden" name="kind" value="stock">
-          <label>รายการต่อหน้า <select name="size">${[10,25,50,100].map(n => `<option${n === size ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
-          <button>แสดง</button></form>
-        ${page > 1 ? `<a href="${link(page - 1)}">ก่อนหน้า</a>` : ''}
-        <span>หน้า ${page} จาก ${pages}</span>
-        ${page < pages ? `<a href="${link(page + 1)}">ถัดไป</a>` : ''}
-        <a href="?kind=stock&amp;print=all" target="_blank" rel="noreferrer">พิมพ์รายงานทุกหน้า</a>
+      navigation = `<nav class="pager" aria-label="หน้ารายงานสต็อก">
+        <div class="pager-info"><strong>${subtitle}</strong>
+          <form method="get"><input type="hidden" name="kind" value="stock">
+            <label>รายการต่อหน้า <select name="size" onchange="this.form.requestSubmit()">${[10,25,50,100].map(n => `<option${n === size ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
+            <noscript><button>แสดง</button></noscript>
+          </form>
+        </div>
+        <div class="pager-steps">
+          <a class="pager-arrow" aria-label="ก่อนหน้า" ${page > 1 ? `href="${link(page - 1)}"` : 'aria-disabled="true"'}>‹</a>
+          <span aria-current="page">หน้า <b>${page}</b> จาก ${pages}</span>
+          <a class="pager-arrow" aria-label="ถัดไป" ${page < pages ? `href="${link(page + 1)}"` : 'aria-disabled="true"'}>›</a>
+        </div>
+        <a class="pager-print" href="?kind=stock&amp;print=all" target="_blank" rel="noreferrer">พิมพ์รายงานทุกหน้า</a>
       </nav>`;
     }
 
@@ -111,7 +115,7 @@ export async function GET({ locals, url }) {
       htmlDocument({
         hospitalName,
         title: 'รายงานสต็อกคงเหลือ',
-        subtitle, navigation,
+        subtitle: navigation ? '' : subtitle, navigation,
         columns: result.columns || [],
         rows: result.rows || []
       }),

@@ -1,3 +1,4 @@
+import { pool } from '$lib/server/postgres.js';
 import { Buffer } from 'node:buffer';
 import { error, fail, redirect } from '@sveltejs/kit';
 import { hasPermission, requirePermission } from '$lib/server/permissions.js';
@@ -76,7 +77,7 @@ export async function load({ locals, url }) {
 
   const needsLocations = ['general', 'drugs', 'locations', 'audit'].includes(tab);
   const needsHistory = tab === 'history';
-  const needsConfig = admin && ['general', 'display', 'report'].includes(tab);
+  const needsConfig = admin && ['general', 'display'].includes(tab);
   const needsUsers = admin && tab === 'users';
   const needsDrugs = drugAccess && ['drugs', 'lot'].includes(tab);
   const needsNotification = admin && tab === 'notify';
@@ -137,6 +138,9 @@ export async function load({ locals, url }) {
     selectedUser,
     selectedItems: selectedItems.status === 'success' ? selectedItems.data || [] : [],
     history: history.status === 'success' ? history.data || [] : [],
+    reportThresholds: tab === 'report' ? (await pool.query(
+      'SELECT expiry_critical_days AS critical, expiry_high_days AS high, expiry_medium_days AS medium FROM app_config WHERE id = TRUE'
+    )).rows[0] : null,
     config: config.status === 'success' ? config.config : DEFAULT_CONFIG,
     notification: notification.status === 'success' ? notification.notification : null,
     notificationSchedule: notification.status === 'success' ? notification.schedule : null,

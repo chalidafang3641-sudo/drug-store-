@@ -106,13 +106,16 @@
             : 'รายการใกล้หมดอายุ';
 </script>
 
+<svelte:head><link rel="stylesheet" href="/css/pagination.css" /></svelte:head>
+
 <main class="dashboard-shell">
-  <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:14px;gap:12px;flex-wrap:wrap">
-    <div>
-      <div class="page-title" style="margin-bottom:0">ภาพรวม</div>
-      <div class="page-sub" style="margin:2px 0 0">{today}</div>
-    </div>
-  </div>
+  <header class="overview-header">
+    <div class="page-title">ภาพรวม</div>
+    <a class="btn-ghost" href={reportUrl + '&format=xlsx'} download="expiry-report.xlsx">
+      <i class="bi bi-download" aria-hidden="true"></i> ดาวน์โหลด Excel
+    </a>
+    <div class="page-sub">{today}</div>
+  </header>
 
   <div id="statGrid" class="stat-grid">
     {#each cards as card}
@@ -162,10 +165,6 @@
   <div style="display:flex;justify-content:space-between;align-items:center;margin:20px 4px 12px;gap:12px;flex-wrap:wrap">
     <div class="section-label" style="margin:0">{listTitle}</div>
     {#if !data.q}
-      <div class="report-actions">
-        <a class="btn-ghost" href={reportUrl} target="_blank" rel="noreferrer">พิมพ์รายงาน</a>
-        <a class="btn-ghost" href={reportUrl + '&format=xlsx'} download="expiry-report.xlsx">ดาวน์โหลด Excel</a>
-      </div>
       <button id="byLocToggle" class="link-btn" type="button" onclick={() => { byLocView = !byLocView; }}>
         {byLocView ? 'ดูเป็นรายการ' : 'ดูแยกสถานที่'}
       </button>
@@ -173,15 +172,20 @@
   </div>
 
   {#if !data.q && !byLocView}
-    <nav class="report-actions" aria-label="หน้ารายการยาใกล้หมดอายุ">
-      <label>จำนวนรายการต่อหน้า
-        <select value={data.size} onchange={(event) => goto(`/dashboard?filter=${filter}&size=${event.currentTarget.value}`, { noScroll: true })}>
-          {#each [10, 25, 50, 100] as size}<option value={size}>{size}</option>{/each}
-        </select>
-      </label>
-      {#if data.page > 1}<a class="btn-ghost" href={`/dashboard?filter=${filter}&size=${data.size}&page=${data.page - 1}`}>ก่อนหน้า</a>{/if}
-      <span>หน้า {data.page} จาก {data.pages} · {data.total} รายการ</span>
-      {#if data.page < data.pages}<a class="btn-ghost" href={`/dashboard?filter=${filter}&size=${data.size}&page=${data.page + 1}`}>ถัดไป</a>{/if}
+    <nav class="pager" aria-label="หน้ารายการยาใกล้หมดอายุ">
+      <div class="pager-info">
+        <strong>แสดง {data.total ? (data.page - 1) * data.size + 1 : 0}–{Math.min(data.page * data.size, data.total)} จาก {data.total} รายการ</strong>
+        <label>รายการต่อหน้า
+          <select value={data.size} onchange={(event) => goto(`/dashboard?filter=${filter}&size=${event.currentTarget.value}`, { noScroll: true })}>
+            {#each [10, 25, 50, 100] as size}<option value={size}>{size}</option>{/each}
+          </select>
+        </label>
+      </div>
+      <div class="pager-steps">
+        <a class="pager-arrow" aria-label="ก่อนหน้า" aria-disabled={data.page <= 1} href={data.page > 1 ? `/dashboard?filter=${filter}&size=${data.size}&page=${data.page - 1}` : undefined}>‹</a>
+        <span aria-current="page">หน้า <b>{data.page}</b> จาก {data.pages}</span>
+        <a class="pager-arrow" aria-label="ถัดไป" aria-disabled={data.page >= data.pages} href={data.page < data.pages ? `/dashboard?filter=${filter}&size=${data.size}&page=${data.page + 1}` : undefined}>›</a>
+      </div>
     </nav>
   {/if}
   <div id="dashList">
@@ -262,7 +266,10 @@
 </main>
 
 <style>
-  .report-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+  .overview-header { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 2px 12px; margin-bottom: 14px; }
+  .overview-header .page-title, .overview-header .page-sub { margin: 0; }
+  .overview-header .page-sub { grid-column: 1 / -1; }
+  .overview-header a { justify-self: end; white-space: nowrap; }
   .dashboard-shell {
     padding: 0;
   }
