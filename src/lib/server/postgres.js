@@ -1,3 +1,4 @@
+import { d1 } from './d1.js';
 import dotenv from 'dotenv';
 import pg from 'pg';
 
@@ -68,7 +69,8 @@ function getPool() {
   return poolInstance;
 }
 
-export const pool = new Proxy({}, {
+export const useD1 = runtimeEnv.DATABASE_DRIVER === 'd1';
+export const pool = useD1 ? d1 : new Proxy({}, {
   get(_target, prop) {
     const value = getPool()[prop];
     return typeof value === 'function' ? value.bind(getPool()) : value;

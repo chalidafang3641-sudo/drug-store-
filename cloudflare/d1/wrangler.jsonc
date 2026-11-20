@@ -1,0 +1,1 @@
+{"name":"drugstore-d1-service","main":"worker.js","compatibility_date":"2026-10-11","workers_dev":true,"preview_urls":false,"d1_databases":[{"binding":"DB","database_name":"drugstore-production","database_id":"ea707cc4-0e5e-451c-b768-6ace02167cd0"}]}

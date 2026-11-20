@@ -11,23 +11,6 @@
   let expiryChoice = expiryPresets.includes(data.notification?.expiry_days ?? 30)
     ? String(data.notification?.expiry_days ?? 30) : 'custom';
   $: notificationSchedule = data.notificationSchedule;
-  onMount(() => {
-    let checking = false;
-    const timer = setInterval(async () => {
-      if (data.tab !== 'notify' || checking) return;
-      checking = true;
-      try {
-        const response = await fetch('/api/notifications/schedule-status');
-        if (response.ok) notificationSchedule = await response.json();
-      } catch {
-        // Retry status on the next interval after a transient connection error.
-      } finally {
-        checking = false;
-      }
-    }, 15000);
-    return () => clearInterval(timer);
-  });
-
   const roleLabels = {
     admin: 'ผู้ดูแลระบบ',
     pharmacist: 'เภสัชกร',
@@ -448,40 +431,14 @@
   }
 
   function enhanceAuditRow({ formElement }) {
-    const input = formElement.querySelector('input[name="actual_qty"]');
     const button = formElement.querySelector('button[type="submit"]');
-
-    function resetButton() {
-      if (button instanceof HTMLButtonElement) {
-        button.disabled = false;
-        button.textContent = 'บันทึก';
-      }
-    }
-
-    if (input instanceof HTMLInputElement && button instanceof HTMLButtonElement) {
-      input.addEventListener('input', resetButton, { once: true });
-    }
-
+    button.disabled = true;
     return async ({ result, update }) => {
-      if (button instanceof HTMLButtonElement) {
-        button.disabled = true;
-        button.textContent = 'กำลังบันทึก...';
+      try {
+        await update({ reset: result.type === 'success' });
+      } finally {
+        button.disabled = false;
       }
-
-      await update();
-
-      if (!(button instanceof HTMLButtonElement)) return;
-      if (result.type === 'success') {
-        button.innerHTML = '<i class="bi bi-check2"></i>';
-        if (input instanceof HTMLInputElement) {
-          input.value = '';
-          input.placeholder = 'บันทึกแล้ว';
-          input.addEventListener('input', resetButton, { once: true });
-        }
-        return;
-      }
-
-      resetButton();
     };
   }
 
@@ -1322,9 +1279,11 @@
       {#if data.canAdmin && data.notification}
         <p role="status">
           {#if notificationSchedule?.state === 'active'}
-            ตัวตั้งเวลาเชื่อมต่ออยู่ · เวลาส่ง {notificationSchedule.time} น. (เวลาไทย)
+            ตั้งรอบส่งแล้ว · เวลาส่ง {notificationSchedule.time} น. (เวลาไทย)
+          {:else if notificationSchedule?.state === 'disabled'}
+            ปิดการแจ้งเตือนอัตโนมัติ
           {:else}
-            ยังไม่พบการเชื่อมต่อล่าสุดจากตัวตั้งเวลา
+            ยังยืนยันรอบส่งไม่ได้ กรุณาบันทึกการตั้งค่าอีกครั้ง
           {/if}
         </p>
         <div class="page-sub">ตั้งค่าช่องทางและเวลาส่งสรุปยาใกล้หมดอายุประจำวัน</div>
@@ -1548,8 +1507,9 @@
         </form>
 
         {#if data.selectedLocation}
+          <a class="btn-ghost" href={`/settings/audit-report?location_id=${encodeURIComponent(data.selectedLocation.id)}`} target="_blank" rel="noreferrer">พิมพ์รายงานตรวจนับ</a>
           <div class="audit-list">
-            {#each data.selectedItems as item}
+            {#each data.selectedItems as item (item.id)}
               <article class="audit-card">
                 <div class="audit-copy">
                   <strong>{item.drug_name}</strong>
@@ -1557,10 +1517,10 @@
                     {#if item.lot_no}Lot {item.lot_no} · {/if}ระบบมี {item.qty}{#if item.expiry_date} · หมดอายุ {formatDate(item.expiry_date)}{/if}
                   </span>
                 </div>
-                <form method="POST" action="?/adjust" use:enhance={enhanceAuditRow} class="audit-form">
+                <form method="POST" action={`${auditLocationHref(data.selectedLocation.id)}&/adjust`} use:enhance={enhanceAuditRow} class="audit-form">
                   <input type="hidden" name="item_id" value={item.id} />
                   <input type="hidden" name="selected_location_id" value={data.selectedLocation.id} />
-                  <input name="actual_qty" type="number" min="0" inputmode="numeric" placeholder="นับจริง" />
+                  <input name="actual_qty" type="number" min="0" step="1" required inputmode="numeric" aria-label={`จำนวนนับจริง ${item.drug_name} Lot ${item.lot_no}`} placeholder="นับจริง" />
                   <button type="submit" class="btn-ghost">บันทึก</button>
                 </form>
               </article>

@@ -1,3 +1,4 @@
+import bcrypt from 'bcryptjs';
 import { pool } from './postgres.js';
 import { SESSION_HOURS } from './api-runtime.js';
 
@@ -32,13 +33,13 @@ export function publicUser(user) {
 export async function apiLogin(username, password) {
   if (!username || !password) return { status: 'error', message: 'กรุณากรอกชื่อผู้ใช้และรหัสผ่าน' };
   const { rows } = await pool.query(
-    `SELECT id, code_id, username, role, name, permissions, active
+    `SELECT id, code_id, username, role, name, permissions, active, password_hash
      FROM app_users
-     WHERE username = $1 AND password_hash = crypt($2, password_hash)`,
-    [String(username).trim(), String(password)]
+     WHERE username = $1`,
+    [String(username).trim()]
   );
   const user = rows[0];
-  if (!user || !user.active) return { status: 'error', message: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' };
+  if (!user || !user.active || !(await bcrypt.compare(String(password), user.password_hash))) return { status: 'error', message: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' };
   const expiresAt = new Date(Date.now() + SESSION_HOURS * 60 * 60 * 1000);
   const session = await pool.query(
     'INSERT INTO sessions (user_id, expires_at) VALUES ($1, $2) RETURNING code_id',

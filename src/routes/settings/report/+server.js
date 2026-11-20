@@ -1,6 +1,11 @@
 import { requirePermission } from '$lib/server/permissions.js';
 import { handleApiPayload } from '../../../../server/index.js';
 
+import { readConfig } from '$lib/server/api-config.js';
+import { pool } from '$lib/server/postgres.js';
+import { itemSelectSql, mapItem } from '$lib/server/api-helpers.js';
+import { expiryByLocation, notificationExpiryWhere } from '$lib/server/notification-content.js';
+
 function esc(value) {
   return String(value == null ? '' : value)
     .replaceAll('&', '&amp;')
@@ -14,11 +19,14 @@ function formatDate(value) {
   return new Date(value).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
-function htmlDocument({ hospitalName, title, subtitle, columns, rows }) {
+function htmlDocument({ hospitalName, title, subtitle, columns, rows = [], groups }) {
   const head = columns.map((column) => `<th>${esc(column)}</th>`).join('');
-  const body = rows
+  const renderRows = rows => rows
     .map((row) => `<tr>${row.map((cell) => `<td>${esc(cell)}</td>`).join('')}</tr>`)
     .join('');
+  const body = groups?.length ? groups.map(group =>
+    `<tbody><tr class="location"><th colspan="${columns.length}" scope="rowgroup">${esc(group.name)} · ${group.rows.length} รายการ</th></tr>${renderRows(group.rows)}</tbody>`
+  ).join('') : `<tbody>${renderRows(rows)}</tbody>`;
 
   return `<!doctype html>
 <html lang="th">
@@ -35,6 +43,9 @@ function htmlDocument({ hospitalName, title, subtitle, columns, rows }) {
       table { width: 100%; border-collapse: collapse; font-size: 12px; }
       th, td { border: 1px solid #cfdcd4; padding: 6px 8px; text-align: left; vertical-align: top; }
       th { background: #e9f3ed; }
+      .location { break-after: avoid; }
+      tbody + tbody .location th { border-top: 3px solid #52665a; }
+      tr { break-inside: avoid; }
       tbody tr:nth-child(even) td { background: #f6faf8; }
     </style>
   </head>
@@ -45,7 +56,7 @@ function htmlDocument({ hospitalName, title, subtitle, columns, rows }) {
       <thead>
         <tr>${head}</tr>
       </thead>
-      <tbody>${body}</tbody>
+      ${body}
     </table>
     <script>
       window.onload = function () {
@@ -82,27 +93,23 @@ export async function GET({ locals, url }) {
     );
   }
 
-  const dashboard = await handleApiPayload({ action: 'getDashboard', token: locals.token });
-  if (dashboard.status !== 'success') {
-    return new Response(dashboard.message || 'Report failed', { status: 400 });
-  }
-
-  const rows = (dashboard.near || []).map((item) => [
-    item.drug_name || '',
-    item.location_name || '',
-    item.lot_no || '',
-    formatDate(item.expiry_date),
-    item.days < 0 ? 'หมดอายุ' : item.days,
-    item.qty || 0
-  ]);
+  const config = await readConfig();
+  const { rows } = await pool.query(itemSelectSql(notificationExpiryWhere()), [config.expiry_medium_days, true]);
+  const groups = expiryByLocation(rows.map(mapItem)).map(({ name, items }) => ({
+    name,
+    rows: items.map((item, index) => [index + 1,
+      item.drug_name, item.lot_no, formatDate(item.expiry_date),
+      item.days < 0 ? 'หมดอายุ' : item.days, item.qty
+    ])
+  }));
 
   return new Response(
     htmlDocument({
       hospitalName,
       title: 'รายงานยาใกล้หมดอายุ',
       subtitle: `พิมพ์เมื่อ ${printedAt} · รวม ${rows.length} รายการ`,
-      columns: ['ยา', 'สถานที่', 'Lot', 'วันหมดอายุ', 'เหลือ (วัน)', 'จำนวน'],
-      rows
+      columns: ['ลำดับ', 'ยา', 'Lot', 'วันหมดอายุ', 'เหลือ (วัน)', 'จำนวน'],
+      groups
     }),
     { headers: { 'content-type': 'text/html; charset=utf-8' } }
   );

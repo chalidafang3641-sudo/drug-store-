@@ -3,9 +3,38 @@
   "name": "drugstore-notification-cron",
   "main": "worker.js",
   "compatibility_date": "2026-10-11",
-  "workers_dev": false,
+  "workers_dev": true,
   "preview_urls": false,
-  "triggers": { "crons": ["* * * * *"] },
-  "observability": { "enabled": true },
-  "vars": { "NOTIFICATION_URL": "https://drug-store-pi.vercel.app/api/notifications/scheduled" }
+  "triggers": {
+    "crons": []
+  },
+  "observability": {
+    "enabled": true
+  },
+  "vars": {
+    "NOTIFICATION_URL": "https://drug-store-pi.vercel.app/api/notifications/scheduled"
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "SCHEDULER",
+        "class_name": "StoreSchedule"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": [
+        "StoreSchedule"
+      ]
+    }
+  ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "drugstore-production",
+      "database_id": "ea707cc4-0e5e-451c-b768-6ace02167cd0"
+    }
+  ]
 }

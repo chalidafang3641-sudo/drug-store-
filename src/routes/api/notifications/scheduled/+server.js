@@ -16,8 +16,11 @@ async function handleScheduledRequest(request, secret, source) {
     return Response.json({ ok: false }, { status: 401 });
   }
   try {
-    await pool.query('UPDATE app_config SET notification_scheduler_last_tick = now() WHERE id = TRUE');
     const config = configOut(await readConfig(), false).notification;
+    const slot = request.headers.get('x-notification-slot');
+    const day = new Date(Date.now() + 7 * 3600000).toISOString().slice(0,10);
+    if (slot !== day + 'T' + config.notify_time) return Response.json({ok:true, results:[]});
+    await pool.query('UPDATE app_config SET notification_scheduler_last_tick = now() WHERE id = TRUE');
     const result = await dispatchScheduledNotifications({
       config,
       query: (sql, params) => pool.query(sql, params),

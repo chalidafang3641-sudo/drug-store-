@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
-import { expiryNotificationSections, notificationExpiryWhere, splitNotificationText, validExpiryDays } from '../src/lib/server/notification-content.js';
+import { expiryByLocation, expiryNotificationSections, notificationExpiryWhere, splitNotificationText, validExpiryDays } from '../src/lib/server/notification-content.js';
 
 test('manual test and scheduled messages have identical content', () => {
   const source = readFileSync(new URL('../server/index.js', import.meta.url), 'utf8');
@@ -30,6 +30,20 @@ test('expiry sections have independent counts and ascending expiry order without
   assert.match(message, /คงเหลือ 12/);
   assert.deepEqual(items.map((item) => item.days), [30, -1, 0, -10, 2]);
   assert.equal(expiryNotificationSections([]), 'ใกล้หมดอายุ 0 รายการ\n\nหมดอายุแล้ว 0 รายการ');
+});
+
+test('location groups keep expired and upcoming lots in earliest-date order', () => {
+  const items = [
+    ['คลัง B', '2026-12-01', 'drug-a', 5],
+    ['คลัง A', '2026-12-02', 'drug-b', 6],
+    ['คลัง B', '2025-01-01', 'drug-c', -300],
+    ['คลัง A', '2025-01-01', 'drug-d', -300]
+  ].map(([location_name, expiry_date, drug_name, days]) => ({ location_name, expiry_date, drug_name, days, qty: 1 }));
+  const groups = expiryByLocation(items);
+  assert.deepEqual(groups.map(g => [g.name, ...g.items.map(item => item.drug_name)]),
+    [['คลัง A', 'drug-d', 'drug-b'], ['คลัง B', 'drug-c', 'drug-a']]);
+  const message = expiryNotificationSections(items);
+  assert.match(message, /สถานที่: คลัง A[^]*drug-d[^]*drug-b[^]*สถานที่: คลัง B[^]*drug-c[^]*drug-a/);
 });
 
 test('expiry days accept zero and custom integers but reject malformed values', () => {

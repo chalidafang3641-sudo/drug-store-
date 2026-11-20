@@ -1,5 +1,5 @@
 import { Buffer } from 'node:buffer';
-import { fail, redirect } from '@sveltejs/kit';
+import { error, fail, redirect } from '@sveltejs/kit';
 import { hasPermission, requirePermission } from '$lib/server/permissions.js';
 import { handleApiPayload } from '../../../server/index.js';
 
@@ -96,6 +96,10 @@ export async function load({ locals, url }) {
 
   if (needsLocations && locations.status !== 'success') {
     redirect(303, '/login');
+  }
+
+  if (needsSelectedItems && selectedItems.status !== 'success') {
+    error(503, 'โหลดรายการตรวจนับไม่สำเร็จ กรุณาลองอีกครั้ง');
   }
 
   const locationList = locations.data || [];
@@ -339,10 +343,10 @@ export const actions = {
     const selectedLocationId = String(form.get('selected_location_id') || '');
     const payload = {
       item_id: String(form.get('item_id') || ''),
-      actual_qty: Number(form.get('actual_qty'))
+      actual_qty: String(form.get('actual_qty') ?? '').trim()
     };
 
-    if (!payload.item_id || payload.actual_qty < 0 || Number.isNaN(payload.actual_qty)) {
+    if (!payload.item_id || !/^\d+$/.test(payload.actual_qty) || !Number.isSafeInteger(Number(payload.actual_qty))) {
       return fail(400, { message: 'กรุณาเลือกรายการและจำนวนตรวจนับให้ถูกต้อง' });
     }
 

@@ -1,3 +1,4 @@
+import bcrypt from 'bcryptjs';
 import cors from 'cors';
 import { expiryNotificationSections, notificationExpiryWhere, splitNotificationText, validExpiryDays } from '../src/lib/server/notification-content.js';
 import express from 'express';
@@ -26,7 +27,7 @@ import {
 import { apiLogin, apiLogout, guard, publicUser, ROLES } from '../src/lib/server/api-auth.js';
 import { apiBranding, apiGetConfig, apiSaveConfig, configOut, readConfig } from '../src/lib/server/api-config.js';
 import { PORT, PUBLIC_BASE_URL, rootDir, uploadDir } from '../src/lib/server/api-runtime.js';
-import { pool } from '../src/lib/server/postgres.js';
+import { pool, useD1 } from '../src/lib/server/postgres.js';
 import { notificationScheduleStatus } from '../src/lib/server/notification-schedule-sync.js';
 
 const app = express();
@@ -117,7 +118,7 @@ async function route(action, p) {
     case 'getUsers': return guard(p, ['*'], apiGetUsers);
     case 'saveUser': return guard(p, ['*'], () => apiSaveUser(p.user));
     case 'deleteUser': return guard(p, ['*'], (user) => apiDeleteUser(p.id, user));
-    case 'getLowStock': return guard(p, ['view'], apiGetLowStock);
+    case 'getLowStock': return guard(p, ['view'], () => apiGetLowStock());
     case 'adjustItem': return guard(p, ['stock'], (user) => apiAdjustItem(p, user));
     default: return { status: 'error', message: `ไม่รู้จักคำสั่ง: ${action || ''}` };
   }
@@ -179,6 +180,10 @@ async function apiDeleteLocation(id) {
 
 async function apiReorderLocations(ids = []) {
   if (!Array.isArray(ids) || !ids.length) return { status: 'error', message: 'ไม่มีข้อมูลลำดับ' };
+  if (useD1) {
+    await pool.query('UPDATE locations SET sort_order=(SELECT key+1 FROM json_each($1) WHERE value=locations.code_id ORDER BY key DESC LIMIT 1) WHERE code_id IN (SELECT value FROM json_each($1))',[ids]);
+    return {status:'success',message:'จัดลำดับแล้ว'};
+  }
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -196,6 +201,10 @@ async function apiReorderLocations(ids = []) {
 }
 
 async function apiSetDefaultReceive(id) {
+  if (useD1) {
+    await pool.query('INSERT INTO default_location_command(code) VALUES ($1)',[id]);
+    return {status:'success',message:'ตั้งจุดเริ่มต้นรับเข้าแล้ว'};
+  }
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -305,6 +314,16 @@ async function apiFindDrugByCode(code) {
 }
 
 async function apiReceiveItem(p, user) {
+  if (useD1) {
+    const params = [String(p.drug_id), String(p.location_id), Number(p.qty), String(p.lot_no || '').trim(), String(p.expiry_date || '').trim(), user.username, String(p.note || '').trim()];
+    if (!Number.isSafeInteger(params[2]) || params[2] <= 0 || !params[4]) return {status:'error', message:'ตรวจสอบจำนวนและวันหมดอายุ'};
+    const where = "d.code_id=$1 AND l.code_id=$2 AND i.lot_no=$3 AND i.expiry_date=$4 AND i.status='active'";
+    const key = [params[0],params[1],params[3],params[4]];
+    const before = await pool.query(itemSelectSql(where), key);
+    await pool.query("INSERT INTO stock_commands(command_id,kind,drug_code,location_code,qty,lot,expiry,actor,note) VALUES(lower(hex(randomblob(16))),'receive',$1,$2,$3,$4,$5,$6,$7)",params);
+    const after = await pool.query(itemSelectSql(where),key);
+    return {status:'success',message:'รับเข้าแล้ว',merged:!!before.rows.length,item:mapItem(after.rows[0])};
+  }
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -469,7 +488,21 @@ async function apiDisposeItem(p, user) {
   return moveStock(p, user, 'dispose');
 }
 
+async function reduceStockD1(p,user,kind) {
+  const qty=Number(kind==='adjust' ? p.actual_qty : p.qty);
+  const reason=kind==='adjust' ? 'ตรวจนับ' : String(p.reason || '').trim() || 'อื่นๆ';
+  if (!Number.isSafeInteger(qty) || qty<0) return {status:'error',message:'จำนวนไม่ถูกต้อง'};
+  try {
+    await pool.query('INSERT INTO stock_reductions(command_id,kind,item_code,qty,reason,note,actor) VALUES(lower(hex(randomblob(16))),$1,$2,$3,$4,$5,$6)',[kind,p.item_id,qty,reason,String(p.note || '').trim(),user.username]);
+    return {status:'success',message:'บันทึกแล้ว'};
+  } catch { return {status:'error',message:'บันทึกไม่สำเร็จ ตรวจสอบรายการและจำนวน'}; }
+}
+
 async function apiAdjustItem(p, user) {
+  if (!/^\d+$/.test(String(p.actual_qty ?? '').trim()) || !Number.isSafeInteger(Number(p.actual_qty))) {
+    return { status: 'error', message: 'กรุณากรอกจำนวนเต็มตั้งแต่ 0 ขึ้นไป' };
+  }
+  if (useD1) return reduceStockD1(p,user,'adjust');
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -506,6 +539,15 @@ async function apiAdjustItem(p, user) {
 }
 
 async function moveStock(p, user, type) {
+  if (useD1 && type === 'exchange') {
+    const qty = Number(p.qty);
+    if (!Number.isSafeInteger(qty) || qty <= 0) return {status:'error',message:'จำนวนไม่ถูกต้อง'};
+    try {
+      await pool.query("INSERT INTO stock_commands(command_id,kind,item_code,location_code,qty,actor) VALUES(lower(hex(randomblob(16))),'exchange',$1,$2,$3,$4)",[p.item_id,p.to_location_id,qty,user.username]);
+      return {status:'success',message:'ย้ายสต็อกแล้ว'};
+    } catch { return {status:'error',message:'โอนไม่สำเร็จ ตรวจสอบจำนวนและสถานที่ปลายทาง'}; }
+  }
+  if (useD1 && type==='dispose') return reduceStockD1(p,user,'dispose');
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -638,7 +680,8 @@ async function apiSaveNotifyConfig(patch = {}) {
       patch.include_expired ?? null
     ]
   );
-  const schedule = notificationScheduleStatus(await readConfig());
+  const schedule = await notificationScheduleStatus(await readConfig(), true);
+  if (schedule.state === 'unavailable') return {status:'error',message:'บันทึกค่าแล้ว แต่ยังตั้งรอบส่งไม่สำเร็จ กรุณากดบันทึกอีกครั้ง'};
   return {
     status: 'success', schedule,
     message: 'บันทึกการแจ้งเตือนแล้ว'
@@ -770,11 +813,14 @@ async function apiTestNotification(channel) {
 
 async function apiChangePassword(p, user) {
   if (String(p.new_password || '').length < 4) return { status: 'error', message: 'รหัสผ่านใหม่ต้องอย่างน้อย 4 ตัวอักษร' };
+  const { rows } = await pool.query('SELECT password_hash FROM app_users WHERE username = $1', [user.username]);
+  const previous = rows[0]?.password_hash;
+  if (!previous || !(await bcrypt.compare(String(p.old_password || ''), previous))) {
+    return { status: 'error', message: 'รหัสผ่านเดิมไม่ถูกต้อง' };
+  }
   const { rowCount } = await pool.query(
-    `UPDATE app_users
-     SET password_hash = crypt($3, gen_salt('bf'))
-     WHERE username = $1 AND password_hash = crypt($2, password_hash)`,
-    [user.username, String(p.old_password || ''), String(p.new_password)]
+    'UPDATE app_users SET password_hash = $3 WHERE username = $1 AND password_hash = $2',
+    [user.username, previous, await bcrypt.hash(String(p.new_password), 10)]
   );
   if (!rowCount) return { status: 'error', message: 'รหัสผ่านเดิมไม่ถูกต้อง' };
   return { status: 'success', message: 'เปลี่ยนรหัสผ่านแล้ว' };
@@ -827,9 +873,9 @@ async function apiSaveUser(u = {}) {
   if (u.id) {
     const duplicate = await pool.query('SELECT id FROM app_users WHERE username = $1 AND code_id <> $2', [username, u.id]);
     if (duplicate.rows[0]) return { status: 'error', message: 'ชื่อผู้ใช้นี้มีอยู่แล้ว' };
-    const passwordSql = u.password && String(u.password).length >= 4 ? ', password_hash = crypt($7, gen_salt(\'bf\'))' : '';
+    const passwordSql = u.password && String(u.password).length >= 4 ? ', password_hash = $7' : '';
     const params = [u.id, username, name, role, ROLES[role].permissions, u.active !== undefined ? !!u.active : true];
-    if (passwordSql) params.push(String(u.password));
+    if (passwordSql) params.push(await bcrypt.hash(String(u.password), 10));
     const { rowCount } = await pool.query(
       `UPDATE app_users SET username = $2, name = $3, role = $4, permissions = $5, active = $6 ${passwordSql} WHERE code_id = $1`,
       params
@@ -841,8 +887,8 @@ async function apiSaveUser(u = {}) {
   try {
     await pool.query(
       `INSERT INTO app_users (username, password_hash, role, name, permissions)
-       VALUES ($1, crypt($2, gen_salt('bf')), $3, $4, $5)`,
-      [username, String(u.password), role, name, ROLES[role].permissions]
+       VALUES ($1, $2, $3, $4, $5)`,
+      [username, await bcrypt.hash(String(u.password), 10), role, name, ROLES[role].permissions]
     );
     return { status: 'success', message: 'เพิ่มผู้ใช้แล้ว' };
   } catch (err) {
