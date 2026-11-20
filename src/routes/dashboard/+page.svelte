@@ -172,18 +172,18 @@
   </div>
 
   {#if !data.q && !byLocView}
-    <nav class="pager" aria-label="หน้ารายการยาใกล้หมดอายุ">
+    <nav class="pager pager-inline" aria-label="หน้ารายการยาใกล้หมดอายุ">
       <div class="pager-info">
-        <strong>{data.total ? (data.page - 1) * data.size + 1 : 0}–{Math.min(data.page * data.size, data.total)} จาก {data.total} รายการ</strong>
-        <label>ต่อหน้า
+        <strong>{data.total ? (data.page - 1) * data.size + 1 : 0}–{Math.min(data.page * data.size, data.total)} / {data.total}</strong>
+        <label>
           <select aria-label="รายการต่อหน้า" value={data.size} onchange={(event) => goto(`/dashboard?filter=${filter}&size=${event.currentTarget.value}`, { noScroll: true })}>
             {#each [10, 25, 50, 100] as size}<option value={size}>{size}</option>{/each}
-          </select>
+          </select> / หน้า
         </label>
       </div>
       <div class="pager-steps">
         <a class="pager-arrow" aria-label="ก่อนหน้า" aria-disabled={data.page <= 1} href={data.page > 1 ? `/dashboard?filter=${filter}&size=${data.size}&page=${data.page - 1}` : undefined}>‹</a>
-        <span aria-current="page">หน้า <b>{data.page}</b>/{data.pages}</span>
+        <span aria-current="page" aria-label={`หน้า ${data.page} จาก ${data.pages}`}><b>{data.page}</b>/{data.pages}</span>
         <a class="pager-arrow" aria-label="ถัดไป" aria-disabled={data.page >= data.pages} href={data.page < data.pages ? `/dashboard?filter=${filter}&size=${data.size}&page=${data.page + 1}` : undefined}>›</a>
       </div>
     </nav>

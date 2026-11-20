@@ -53,3 +53,19 @@
   .pager-steps { flex: 1 1 auto; justify-content: space-between; }
 }
 @media print { .pager { display: none; } }
+
+.pager-inline {
+  flex-wrap: nowrap;
+  gap: 6px;
+  padding: 5px 8px;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+.pager-inline .pager-info { flex: 1 0 auto; flex-wrap: nowrap; justify-content: space-between; gap: 6px; }
+.pager-inline label, .pager-inline .pager-steps { gap: 2px; }
+.pager-inline .pager-steps { flex: 0 0 auto; padding: 1px; }
+@media (max-width: 560px) {
+  .pager-inline { font-size: 13px; }
+  .pager-inline select { padding-inline: 3px; }
+  .pager-inline .pager-arrow { width: 30px; }
+}
