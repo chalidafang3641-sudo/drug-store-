@@ -15,17 +15,27 @@
 .pager-info, .pager label, .pager-steps { display: flex; align-items: center; gap: 8px; }
 .pager-info { flex: 1 1 auto; flex-wrap: wrap; gap: 8px 20px; }
 .pager-info strong { font-weight: 600; }
-.pager label { white-space: nowrap; margin: 0; }
-.pager select {
-  width: auto;
-  min-height: 44px;
-  padding: 4px 8px;
-  border: 1px solid var(--line, #cbdad1);
-  border-radius: 8px;
-  background: var(--card, white);
-  color: inherit;
-  font: inherit;
+.page-size {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  border-radius: 10px;
+  padding: 2px;
+  background: var(--bg, #f1f5f2);
 }
+.page-size-label { padding: 0 5px; font-size: .88em; }
+.page-size a {
+  display: grid;
+  place-items: center;
+  min-width: 32px;
+  min-height: 40px;
+  border-radius: 8px;
+  font-weight: 600;
+  text-decoration: none;
+  color: inherit;
+}
+.page-size a:hover { background: var(--brand-soft, #dfebe4); }
+.page-size a[aria-current="true"] { background: var(--brand-ink, #245338); color: var(--card, white); }
 .pager-steps {
   padding: 3px;
   border-radius: 12px;
@@ -66,6 +76,12 @@
 .pager-inline .pager-steps { flex: 0 0 auto; padding: 1px; }
 @media (max-width: 560px) {
   .pager-inline { font-size: 13px; }
-  .pager-inline select { padding-inline: 3px; }
-  .pager-inline .pager-arrow { width: 30px; }
+  .pager-inline .page-size a { min-width: 26px; }
+  .pager-inline .page-size-label { padding: 0 2px; }
+  .pager-inline { gap: 3px; padding-inline: 4px; }
+  .pager-inline .pager-info { gap: 3px; }
+  .pager-inline .pager-arrow { width: 26px; }
+}
+@media (max-width: 345px) {
+  .pager-inline .page-size-label { display: none; }
 }

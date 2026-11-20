@@ -97,10 +97,10 @@ export async function GET({ locals, url }) {
       const link = n => `?kind=stock&amp;page=${n}&amp;size=${size}`;
       navigation = `<nav class="pager" aria-label="หน้ารายงานสต็อก">
         <div class="pager-info"><strong>${subtitle}</strong>
-          <form method="get"><input type="hidden" name="kind" value="stock">
-            <label>รายการต่อหน้า <select name="size" onchange="this.form.requestSubmit()">${[10,25,50,100].map(n => `<option${n === size ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
-            <noscript><button>แสดง</button></noscript>
-          </form>
+          <div class="page-size" role="group" aria-label="จำนวนรายการต่อหน้า">
+            <span class="page-size-label">ต่อหน้า</span>
+            ${[10,25,50,100].map(n => `<a href="?kind=stock&amp;size=${n}" aria-label="${n} รายการต่อหน้า"${n === size ? ' aria-current="true"' : ''}>${n}</a>`).join('')}
+          </div>
         </div>
         <div class="pager-steps">
           <a class="pager-arrow" aria-label="ก่อนหน้า" ${page > 1 ? `href="${link(page - 1)}"` : 'aria-disabled="true"'}>‹</a>

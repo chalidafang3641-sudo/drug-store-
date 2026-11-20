@@ -175,11 +175,13 @@
     <nav class="pager pager-inline" aria-label="หน้ารายการยาใกล้หมดอายุ">
       <div class="pager-info">
         <strong>{data.total ? (data.page - 1) * data.size + 1 : 0}–{Math.min(data.page * data.size, data.total)} / {data.total}</strong>
-        <label>
-          <select aria-label="รายการต่อหน้า" value={data.size} onchange={(event) => goto(`/dashboard?filter=${filter}&size=${event.currentTarget.value}`, { noScroll: true })}>
-            {#each [10, 25, 50, 100] as size}<option value={size}>{size}</option>{/each}
-          </select> / หน้า
-        </label>
+        <div class="page-size" role="group" aria-label="จำนวนรายการต่อหน้า">
+          <span class="page-size-label">ต่อหน้า</span>
+          {#each [10, 25, 50, 100] as size}
+            <a href={`/dashboard?filter=${filter}&size=${size}`} data-sveltekit-noscroll
+              aria-label={`${size} รายการต่อหน้า`} aria-current={size === data.size ? 'true' : undefined}>{size}</a>
+          {/each}
+        </div>
       </div>
       <div class="pager-steps">
         <a class="pager-arrow" aria-label="ก่อนหน้า" aria-disabled={data.page <= 1} href={data.page > 1 ? `/dashboard?filter=${filter}&size=${data.size}&page=${data.page - 1}` : undefined}>‹</a>
