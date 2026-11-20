@@ -835,13 +835,29 @@ async function apiExportData(p) {
   const from = String(p.from || '');
   const to = String(p.to || '');
   if (kind === 'stock') {
-    const { rows } = await pool.query(itemSelectSql("i.status = 'active' AND i.qty > 0"));
+    const where = "i.status = 'active' AND i.qty > 0";
+    let sql = itemSelectSql(where) + ' ORDER BY l.name, d.name, i.expiry_date, i.id';
+    const params = [];
+    let pagination;
+    if (p.page !== undefined) {
+      const size = [10, 25, 50, 100].includes(Number(p.size)) ? Number(p.size) : 25;
+      const count = await pool.query(`SELECT COUNT(*) AS total FROM items i WHERE ${where}`);
+      const total = Number(count.rows[0].total);
+      const pages = Math.max(1, Math.ceil(total / size));
+      const requested = Number(p.page);
+      const page = Math.min(pages, Math.max(1, Number.isSafeInteger(requested) ? requested : 1));
+      pagination = { page, size, total, pages };
+      sql += ' LIMIT $1 OFFSET $2';
+      params.push(size, (page - 1) * size);
+    }
+    const { rows } = await pool.query(sql, params);
     return {
       status: 'success',
       columns: ['ยา', 'สถานที่', 'Lot No.', 'วันหมดอายุ', 'คงเหลือ(วัน)', 'จำนวน', 'รับเข้าโดย', 'รับเข้าเมื่อ'],
       rows: rows.map((it) => [it.drug_name, it.location_name, it.lot_no || '', dateOnly(it.expiry_date), daysTo(it.expiry_date), Number(it.qty || 0), it.received_by || '', dateOnly(it.received_at)]),
       filename: exportName(kind, from, to),
-      count: rows.length
+      count: rows.length,
+      ...(pagination && { pagination })
     };
   }
   const types = kind === 'receive' ? ['receive'] : ['receive', 'exchange', 'dispose', 'adjust'];

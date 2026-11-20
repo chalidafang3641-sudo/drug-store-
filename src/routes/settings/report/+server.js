@@ -21,7 +21,7 @@ function formatDate(value) {
   return new Date(value).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
-function htmlDocument({ hospitalName, title, subtitle, columns, rows = [], groups }) {
+function htmlDocument({ hospitalName, title, subtitle, columns, rows = [], groups, navigation = '' }) {
   const head = columns.map((column) => `<th>${esc(column)}</th>`).join('');
   const renderRows = rows => rows
     .map((row) => `<tr>${row.map((cell) => `<td>${esc(cell)}</td>`).join('')}</tr>`)
@@ -42,6 +42,9 @@ function htmlDocument({ hospitalName, title, subtitle, columns, rows = [], group
       body { margin: 0; padding: 24px; font-family: "Sarabun", sans-serif; color: #19241e; }
       h1 { margin: 0 0 2px; font-size: 18px; }
       .sub { margin: 0 0 14px; color: #5a6b62; font-size: 12px; }
+      nav, nav form { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+      nav { margin-bottom: 1rem; }
+      @media print { nav { display: none; } }
       table { width: 100%; border-collapse: collapse; font-size: 12px; }
       th, td { border: 1px solid #cfdcd4; padding: 6px 8px; text-align: left; vertical-align: top; }
       th { background: #e9f3ed; }
@@ -54,17 +57,18 @@ function htmlDocument({ hospitalName, title, subtitle, columns, rows = [], group
   <body>
     <h1>${esc(hospitalName)}</h1>
     <div class="sub">${esc(title)} · ${esc(subtitle)}</div>
+    ${navigation}
     <table>
       <thead>
         <tr>${head}</tr>
       </thead>
       ${body}
     </table>
-    <script>
+    ${navigation ? '' : `<script>
       window.onload = function () {
         setTimeout(function () { window.print(); }, 350);
       };
-    </script>
+    </script>`}
   </body>
 </html>`;
 }
@@ -78,16 +82,36 @@ export async function GET({ locals, url }) {
   const printedAt = new Date().toLocaleString('th-TH');
 
   if (kind === 'stock') {
-    const result = await handleApiPayload({ action: 'exportData', token: locals.token, kind: 'stock' });
+    const print = url.searchParams.get('print') === 'all';
+    const options = print ? {} : { page: url.searchParams.get('page') || 1, size: url.searchParams.get('size') };
+    const result = await handleApiPayload({ action: 'exportData', token: locals.token, kind: 'stock', ...options });
     if (result.status !== 'success') {
       return new Response(result.message || 'Report failed', { status: 400 });
+    }
+
+    let navigation = '';
+    let subtitle = `พิมพ์เมื่อ ${printedAt} · รวม ${result.count} รายการ`;
+    if (!print) {
+      const { page, size, total, pages } = result.pagination;
+      const start = total ? (page - 1) * size + 1 : 0;
+      subtitle = `แสดง ${start}–${Math.min(page * size, total)} จาก ${total} รายการ`;
+      const link = n => `?kind=stock&amp;page=${n}&amp;size=${size}`;
+      navigation = `<nav aria-label="หน้ารายงานสต็อก">
+        <form method="get"><input type="hidden" name="kind" value="stock">
+          <label>รายการต่อหน้า <select name="size">${[10,25,50,100].map(n => `<option${n === size ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
+          <button>แสดง</button></form>
+        ${page > 1 ? `<a href="${link(page - 1)}">ก่อนหน้า</a>` : ''}
+        <span>หน้า ${page} จาก ${pages}</span>
+        ${page < pages ? `<a href="${link(page + 1)}">ถัดไป</a>` : ''}
+        <a href="?kind=stock&amp;print=all" target="_blank" rel="noreferrer">พิมพ์รายงานทุกหน้า</a>
+      </nav>`;
     }
 
     return new Response(
       htmlDocument({
         hospitalName,
         title: 'รายงานสต็อกคงเหลือ',
-        subtitle: `พิมพ์เมื่อ ${printedAt} · รวม ${result.count || 0} รายการ`,
+        subtitle, navigation,
         columns: result.columns || [],
         rows: result.rows || []
       }),

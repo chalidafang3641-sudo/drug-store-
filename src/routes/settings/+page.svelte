@@ -1542,7 +1542,7 @@
         <h2>รายงานสต็อกคงเหลือทั้งหมด</h2>
         <button class="btn-brand report-submit" type="submit">
           <i class="bi bi-printer"></i>
-          <span>{reportPending ? 'กำลังเปิดรายงาน...' : 'สร้างรายงานและพิมพ์'}</span>
+          <span>{reportPending ? 'กำลังเปิดรายงาน...' : 'เปิดรายงานสต็อก'}</span>
         </button>
         <p class="hint report-hint">ในหน้าต่างพิมพ์ เลือกปลายทางเป็น "บันทึกเป็น PDF" เพื่อได้ไฟล์ PDF</p>
       </form>

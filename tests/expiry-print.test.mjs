@@ -57,6 +57,14 @@ test('expiry print groups the complete selection, escapes values and orders lots
     assert.deepEqual(selected.near.map(item => item.lot_no), ['Lot-103']);
     const filteredPrint = await GET({ locals, url: new URL('http://localhost/settings/report?filter=high') });
     assert.deepEqual((await filteredPrint.text()).match(/Lot-\d+/g), ['Lot-103']);
+    const stockReport = async query => (await GET({ locals, url: new URL('http://localhost/settings/report?kind=stock' + query) })).text();
+    const lastStock = await stockReport('&size=10&page=11');
+    assert.match(lastStock, /แสดง 101–103 จาก 103 รายการ/);
+    assert.equal(lastStock.match(/<td>Lot-/g).length, 3);
+    assert.doesNotMatch(lastStock, /window.print/);
+    const fullStock = await stockReport('&print=all');
+    assert.equal(fullStock.match(/<td>Lot-/g).length, 103);
+    assert.match(fullStock, /window.print/);
     const html = await response.text();
     assert.equal(response.status, 200);
     assert.match(html, /รวม 103 รายการ/);
