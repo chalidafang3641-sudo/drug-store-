@@ -3,7 +3,6 @@ import writeXlsxFile from 'write-excel-file/node';
 import { requirePermission } from '$lib/server/permissions.js';
 import { handleApiPayload } from '../../../../server/index.js';
 
-import { readConfig } from '$lib/server/api-config.js';
 import { pool } from '$lib/server/postgres.js';
 import { itemSelectSql, mapItem } from '$lib/server/api-helpers.js';
 import { expiryByLocation } from '$lib/server/notification-content.js';
@@ -76,8 +75,10 @@ export async function GET({ locals, url }) {
   requirePermission(locals, ['view']);
 
   const kind = url.searchParams.get('kind') || 'near';
-  const branding = await handleApiPayload({ action: 'branding' });
-  const hospitalName = branding?.branding?.hospital_name || 'The Watcher';
+  const { rows: [config] } = await pool.query(
+    'SELECT hospital_name, expiry_critical_days, expiry_high_days, expiry_medium_days FROM app_config WHERE id = TRUE'
+  );
+  const hospitalName = config.hospital_name || 'The Watcher';
   const printedAt = new Date().toLocaleString('th-TH');
 
   if (kind === 'stock') {
@@ -123,7 +124,6 @@ export async function GET({ locals, url }) {
     );
   }
 
-  const config = await readConfig();
   const { where, params } = expirySelection(url.searchParams.get('filter'), config);
   const { rows } = await pool.query(itemSelectSql(where), params);
   const locations = expiryByLocation(rows.map(mapItem));

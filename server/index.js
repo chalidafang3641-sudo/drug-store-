@@ -374,11 +374,28 @@ async function apiReceiveItem(p, user) {
   }
 }
 
-async function apiGetDashboard(options = {}) {
-  const c = await readConfig();
-  const baseWhere = "i.status = 'active' AND i.qty > 0";
+export async function apiGetDashboard(options = {}, previousVersion = null) {
   const client = await pool.connect();
   try {
+    const versionColumns = useD1 ? ", (SELECT revision FROM dashboard_revision WHERE id = 1) AS revision, date('now','+7 hours') AS today" : '';
+    const { rows: [c] } = await client.query(
+      `SELECT expiry_critical_days, expiry_high_days, expiry_medium_days ${versionColumns} FROM app_config WHERE id = TRUE`
+    );
+    const version = useD1 ? [c.revision, c.today, c.expiry_critical_days, c.expiry_high_days, c.expiry_medium_days, options.filter || 'all'].join(':') : null;
+    const baseWhere = "i.status = 'active' AND i.qty > 0";
+    const { where, params } = expirySelection(options.filter, c);
+    const size = [10, 25, 50, 100].includes(Number(options.size)) ? Number(options.size) : 50;
+    const requested = Number(options.page);
+    const requestedPage = Number.isSafeInteger(requested) && requested > 0 && requested <= Math.floor(Number.MAX_SAFE_INTEGER / size) ? requested : 1;
+    const list = async page => {
+      const paging = options.page === undefined ? '' : ` LIMIT ${size} OFFSET ${(page - 1) * size}`;
+      const result = await client.query(`${itemSelectSql(where)} ORDER BY i.expiry_date, d.name, i.id${paging}`, params);
+      return result.rows.map(mapItem);
+    };
+    if (version && version === previousVersion) {
+      const near = await list(requestedPage);
+      if (near.length || requestedPage === 1) return { status: 'success', version, near, page: requestedPage, size };
+    }
     const summaryResult = await client.query(
       `SELECT
          COUNT(*)::int AS total_items,
@@ -392,7 +409,6 @@ async function apiGetDashboard(options = {}) {
        WHERE ${baseWhere}`,
       [c.expiry_critical_days, c.expiry_high_days, c.expiry_medium_days]
     );
-    const { where, params } = expirySelection(options.filter, c);
     const byLocationResult = await client.query(
       `SELECT l.code_id AS location_id,
               l.name AS location_name,
@@ -406,14 +422,9 @@ async function apiGetDashboard(options = {}) {
       params
     );
     const total = byLocationResult.rows.reduce((sum, row) => sum + Number(row.count), 0);
-    const size = [10, 25, 50, 100].includes(Number(options.size)) ? Number(options.size) : 50;
     const pages = Math.max(1, Math.ceil(total / size));
-    const requested = Number(options.page);
-    const page = Math.max(1, Math.min(pages, Number.isSafeInteger(requested) ? requested : 1));
-    const paging = options.page === undefined ? '' : ` LIMIT ${size} OFFSET ${(page - 1) * size}`;
-    const nearResult = await client.query(
-      `${itemSelectSql(where)} ORDER BY i.expiry_date, d.name, i.id${paging}`, params
-    );
+    const page = Math.min(pages, requestedPage);
+    const near = await list(page);
     const lowStock = await apiGetLowStock(client);
     const summary = {
       within35: Number(summaryResult.rows[0]?.within35 || 0),
@@ -427,7 +438,7 @@ async function apiGetDashboard(options = {}) {
     return {
       status: 'success',
       summary,
-      near: nearResult.rows.map(mapItem),
+      near, version,
       page, pages, size, total,
       by_location: byLocationResult.rows.map((row) => ({
         location_id: row.location_id,

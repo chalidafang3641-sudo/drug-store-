@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -38,18 +38,30 @@ test('expiry print groups the complete selection, escapes values and orders lots
     INSERT INTO sessions VALUES(1,'fixture','2099-01-01');
     UPDATE items SET expiry_date=date('now','+7 hours','+36 days') WHERE id=103;
   `);
-  db.close();
+  db.exec(readFileSync(new URL('../db/d1/dashboard-revision.sql', import.meta.url), 'utf8'));
 
   const vite = await createServer({ server: { middlewareMode: true }, appType: 'custom', logLevel: 'error' });
   try {
     const { GET } = await vite.ssrLoadModule('/src/routes/settings/report/+server.js');
+    const { pool } = await vite.ssrLoadModule('/src/lib/server/postgres.js');
+    const statements = [];
+    const originalQuery = pool.query;
+    pool.query = function(sql, ...rest) {
+      statements.push(sql);
+      return originalQuery.call(this, sql, ...rest);
+    };
+    const configReads = () => statements.filter(sql => /FROM app_config/i.test(sql)).length;
     const response = await GET({
       locals: { user: { permissions: ['view'] } },
       url: new URL('http://localhost/settings/report?kind=near')
     });
-    const { load } = await vite.ssrLoadModule('/src/routes/dashboard/+page.server.js');
+    assert.equal(configReads(), 1);
+    const { GET: getDashboard } = await vite.ssrLoadModule('/src/routes/dashboard/data/+server.js');
     const locals = { user: { permissions: ['view'] }, token: 'fixture' };
-    const dashboard = query => load({ locals, url: new URL('http://localhost/dashboard?' + query) });
+    const dashboard = async (query, version) => (await getDashboard({ locals,
+      url: new URL('http://localhost/dashboard/data?' + query),
+      request: new Request('http://localhost', { headers: version ? { 'x-dashboard-version': version } : {} })
+    })).json();
     const last = await dashboard('page=3');
     assert.equal(last.pages, 3);
     const smallPage = await dashboard('size=10&page=11');
@@ -61,6 +73,18 @@ test('expiry print groups the complete selection, escapes values and orders lots
     assert.equal(last.near.length, 3);
     const selected = await dashboard('filter=high');
     assert.deepEqual(selected.near.map(item => item.lot_no), ['Lot-103']);
+    statements.length = 0;
+    const second = await dashboard('page=2', last.version);
+    assert.equal(second.summary, undefined);
+    assert.equal(second.near.length, 50);
+    assert.equal(statements.length, 2);
+    assert.ok(statements.every(sql => !/GROUP BY|SUM\(/i.test(sql)));
+    db.exec("UPDATE items SET qty=0 WHERE id=1");
+    const afterChange = await dashboard('page=2', last.version);
+    assert.notEqual(afterChange.version, last.version);
+    assert.equal(afterChange.summary.total_qty, 102);
+    assert.equal(afterChange.total, 102);
+    db.exec("UPDATE items SET qty=1 WHERE id=1");
     const filteredPrint = await GET({ locals, url: new URL('http://localhost/settings/report?filter=high') });
     assert.deepEqual((await filteredPrint.text()).match(/Lot-\d+/g), ['Lot-103']);
     const stockReport = async query => (await GET({ locals, url: new URL('http://localhost/settings/report?kind=stock' + query) })).text();
@@ -90,15 +114,18 @@ test('expiry print groups the complete selection, escapes values and orders lots
       assert.ok(statuses.slice(firstUpcoming).every(status => status !== 'หมดอายุ'));
     }
     assert.match(html, /window\.print/);
+    statements.length = 0;
     const download = await GET({
       locals: { user: { permissions: ['view'] } },
       url: new URL('http://localhost/settings/report?kind=near&format=xlsx')
     });
+    assert.equal(configReads(), 1);
     assert.equal(download.status, 200);
     assert.match(download.headers.get('content-disposition'), /attachment; filename="expiry-report.xlsx"/);
     const workbook = Buffer.from(await download.arrayBuffer());
     assert.equal(workbook.readUInt32LE(), 0x04034b50);
   } finally {
+    db.close();
     await vite.close();
     rmSync(dir, { recursive: true, force: true });
   }
