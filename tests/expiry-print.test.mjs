@@ -52,6 +52,12 @@ test('expiry print groups the complete selection, escapes values and orders lots
     const dashboard = query => load({ locals, url: new URL('http://localhost/dashboard?' + query) });
     const last = await dashboard('page=3');
     assert.equal(last.pages, 3);
+    const smallPage = await dashboard('size=10&page=11');
+    assert.equal(smallPage.pages, 11);
+    assert.equal(smallPage.near.length, 3);
+    assert.equal((await dashboard('size=25')).near.length, 25);
+    assert.equal((await dashboard('size=100')).near.length, 100);
+    assert.equal((await dashboard('size=-1')).size, 50);
     assert.equal(last.near.length, 3);
     const selected = await dashboard('filter=high');
     assert.deepEqual(selected.near.map(item => item.lot_no), ['Lot-103']);

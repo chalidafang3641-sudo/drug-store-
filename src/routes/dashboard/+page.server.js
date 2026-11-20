@@ -8,7 +8,7 @@ export async function load({ locals, url }) {
 
   const selected = url.searchParams.get('filter');
   const filter = ['crit', 'high', 'med'].includes(selected) ? selected : 'all';
-  const dashboard = await handleApiPayload({ action: 'getDashboard', token: locals.token, filter, page: url.searchParams.get('page') || 1 });
+  const dashboard = await handleApiPayload({ action: 'getDashboard', token: locals.token, filter, size: url.searchParams.get('size'), page: url.searchParams.get('page') || 1 });
   if (dashboard.status !== 'success') {
     redirect(303, '/login');
   }
@@ -22,7 +22,7 @@ export async function load({ locals, url }) {
   }
 
   return {
-    user, filter, page: dashboard.page, pages: dashboard.pages, total: dashboard.total,
+    user, filter, page: dashboard.page, pages: dashboard.pages, size: dashboard.size, total: dashboard.total,
     q,
     searchResults,
     summary: dashboard.summary,

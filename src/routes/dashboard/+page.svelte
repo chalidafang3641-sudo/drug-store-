@@ -121,7 +121,7 @@
         class={`stat-card ${card.tone} ${card.id ? 'tappable' : ''} ${filter === card.id ? 'on' : ''}`}
         onclick={() => {
           if (!card.id) return;
-          goto('/dashboard?filter=' + (filter === card.id ? 'all' : card.id), { noScroll: true });
+          goto('/dashboard?filter=' + (filter === card.id ? 'all' : card.id) + '&size=' + data.size, { noScroll: true });
           byLocView = false;
         }}
       >
@@ -172,6 +172,18 @@
     {/if}
   </div>
 
+  {#if !data.q && !byLocView}
+    <nav class="report-actions" aria-label="หน้ารายการยาใกล้หมดอายุ">
+      <label>จำนวนรายการต่อหน้า
+        <select value={data.size} onchange={(event) => goto(`/dashboard?filter=${filter}&size=${event.currentTarget.value}`, { noScroll: true })}>
+          {#each [10, 25, 50, 100] as size}<option value={size}>{size}</option>{/each}
+        </select>
+      </label>
+      {#if data.page > 1}<a class="btn-ghost" href={`/dashboard?filter=${filter}&size=${data.size}&page=${data.page - 1}`}>ก่อนหน้า</a>{/if}
+      <span>หน้า {data.page} จาก {data.pages} · {data.total} รายการ</span>
+      {#if data.page < data.pages}<a class="btn-ghost" href={`/dashboard?filter=${filter}&size=${data.size}&page=${data.page + 1}`}>ถัดไป</a>{/if}
+    </nav>
+  {/if}
   <div id="dashList">
     {#if data.q}
       {#if searchResults.length}
@@ -247,13 +259,6 @@
       </div>
     {/if}
   </div>
-  {#if !data.q && !byLocView && data.pages > 1}
-    <nav class="report-actions" aria-label="หน้ารายการยาใกล้หมดอายุ">
-      {#if data.page > 1}<a class="btn-ghost" href={`/dashboard?filter=${filter}&page=${data.page - 1}`}>ก่อนหน้า</a>{/if}
-      <span>หน้า {data.page} จาก {data.pages} · {data.total} รายการ</span>
-      {#if data.page < data.pages}<a class="btn-ghost" href={`/dashboard?filter=${filter}&page=${data.page + 1}`}>ถัดไป</a>{/if}
-    </nav>
-  {/if}
 </main>
 
 <style>

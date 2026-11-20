@@ -406,10 +406,11 @@ async function apiGetDashboard(options = {}) {
       params
     );
     const total = byLocationResult.rows.reduce((sum, row) => sum + Number(row.count), 0);
-    const pages = Math.max(1, Math.ceil(total / 50));
+    const size = [10, 25, 50, 100].includes(Number(options.size)) ? Number(options.size) : 50;
+    const pages = Math.max(1, Math.ceil(total / size));
     const requested = Number(options.page);
     const page = Math.max(1, Math.min(pages, Number.isSafeInteger(requested) ? requested : 1));
-    const paging = options.page === undefined ? '' : ` LIMIT 50 OFFSET ${(page - 1) * 50}`;
+    const paging = options.page === undefined ? '' : ` LIMIT ${size} OFFSET ${(page - 1) * size}`;
     const nearResult = await client.query(
       `${itemSelectSql(where)} ORDER BY i.expiry_date, d.name, i.id${paging}`, params
     );
@@ -427,7 +428,7 @@ async function apiGetDashboard(options = {}) {
       status: 'success',
       summary,
       near: nearResult.rows.map(mapItem),
-      page, pages, total,
+      page, pages, size, total,
       by_location: byLocationResult.rows.map((row) => ({
         location_id: row.location_id,
         location_name: row.location_name,
