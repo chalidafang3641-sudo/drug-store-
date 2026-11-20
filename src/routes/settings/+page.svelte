@@ -73,12 +73,11 @@
     },
     {
       title: 'รายงานและการส่งออก',
-      body: 'ใช้เมนู ส่งออกข้อมูล เพื่อดาวน์โหลด CSV และเมนู พิมพ์รายงาน เพื่อเปิดหน้า print-friendly สำหรับรายงานยาใกล้หมดอายุหรือ stock คงเหลือ แล้วบันทึกเป็น PDF จาก dialog พิมพ์ของเบราว์เซอร์.'
+      body: 'พิมพ์รายงานยาใกล้หมดอายุหรือดาวน์โหลด Excel ได้จากหน้าภาพรวม ส่วนรายงานสต็อกคงเหลือพิมพ์ได้จากเมนูพิมพ์รายงาน'
     }
   ];
 
   let darkMode = false;
-  let reportType = 'near';
   let reportPending = false;
   let exportKind = form?.exportResult?.kind || 'all';
   let exportFrom = form?.exportResult?.from || today();
@@ -1539,22 +1538,12 @@
   {:else if data.tab === 'report'}
     <section class="panel">
       <form class="report-legacy" method="GET" action="/settings/report" target="_blank" rel="noreferrer" onsubmit={openReport}>
-        <div class="field">
-          <label for="report-type">ประเภทรายงาน</label>
-          <select id="report-type" name="kind" bind:value={reportType}>
-            <option value="near">ยาใกล้หมดอายุ (ภายใน {data.config.expiry_thresholds?.medium || 120} วัน)</option>
-            <option value="stock">สต็อกคงเหลือทั้งหมด</option>
-          </select>
-        </div>
+        <input type="hidden" name="kind" value="stock" />
+        <h2>รายงานสต็อกคงเหลือทั้งหมด</h2>
         <button class="btn-brand report-submit" type="submit">
           <i class="bi bi-printer"></i>
           <span>{reportPending ? 'กำลังเปิดรายงาน...' : 'สร้างรายงานและพิมพ์'}</span>
         </button>
-        {#if reportType === 'near'}
-          <a class="btn-ghost report-submit" href="/settings/report?kind=near&format=xlsx" download="expiry-report.xlsx">
-            <i class="bi bi-download"></i> ดาวน์โหลด Excel
-          </a>
-        {/if}
         <p class="hint report-hint">ในหน้าต่างพิมพ์ เลือกปลายทางเป็น "บันทึกเป็น PDF" เพื่อได้ไฟล์ PDF</p>
       </form>
     </section>

@@ -1,3 +1,4 @@
+import { bangkokToday, expirySelection } from '../src/lib/server/expiry-selection.js';
 import bcrypt from 'bcryptjs';
 import cors from 'cors';
 import { expiryNotificationSections, notificationExpiryWhere, splitNotificationText, validExpiryDays } from '../src/lib/server/notification-content.js';
@@ -102,7 +103,7 @@ async function route(action, p) {
     case 'receiveItem': return guard(p, ['receive'], (user) => apiReceiveItem(p, user));
     case 'recentReceives': return guard(p, ['view'], () => apiRecentTransactions('receive', p.limit || 20));
     case 'findDrugByCode': return guard(p, ['view'], () => apiFindDrugByCode(p.code));
-    case 'getDashboard': return guard(p, ['view'], apiGetDashboard);
+    case 'getDashboard': return guard(p, ['view'], () => apiGetDashboard(p));
     case 'searchItems': return guard(p, ['view'], () => apiSearchItems(p.q));
     case 'getLocationStock': return guard(p, ['view'], apiGetLocationStock);
     case 'getLocationItems': return guard(p, ['view'], () => apiGetLocationItems(p.location_id));
@@ -373,7 +374,7 @@ async function apiReceiveItem(p, user) {
   }
 }
 
-async function apiGetDashboard() {
+async function apiGetDashboard(options = {}) {
   const c = await readConfig();
   const baseWhere = "i.status = 'active' AND i.qty > 0";
   const client = await pool.connect();
@@ -382,21 +383,16 @@ async function apiGetDashboard() {
       `SELECT
          COUNT(*)::int AS total_items,
          COALESCE(SUM(i.qty), 0)::int AS total_qty,
-         COUNT(*) FILTER (WHERE i.expiry_date < CURRENT_DATE)::int AS expired,
-         COUNT(*) FILTER (WHERE i.expiry_date <= CURRENT_DATE + $1::int)::int AS within35,
-         COUNT(*) FILTER (WHERE i.expiry_date > CURRENT_DATE + $1::int AND i.expiry_date <= CURRENT_DATE + $2::int)::int AS within60,
-         COUNT(*) FILTER (WHERE i.expiry_date > CURRENT_DATE + $2::int AND i.expiry_date <= CURRENT_DATE + $3::int)::int AS within120,
-         COUNT(*) FILTER (WHERE i.expiry_date > CURRENT_DATE + $3::int)::int AS over120
+         COUNT(*) FILTER (WHERE i.expiry_date < ${bangkokToday})::int AS expired,
+         COUNT(*) FILTER (WHERE i.expiry_date <= ${bangkokToday} + $1::int)::int AS within35,
+         COUNT(*) FILTER (WHERE i.expiry_date > ${bangkokToday} + $1::int AND i.expiry_date <= ${bangkokToday} + $2::int)::int AS within60,
+         COUNT(*) FILTER (WHERE i.expiry_date > ${bangkokToday} + $2::int AND i.expiry_date <= ${bangkokToday} + $3::int)::int AS within120,
+         COUNT(*) FILTER (WHERE i.expiry_date > ${bangkokToday} + $3::int)::int AS over120
        FROM items i
        WHERE ${baseWhere}`,
       [c.expiry_critical_days, c.expiry_high_days, c.expiry_medium_days]
     );
-    const nearResult = await client.query(
-      `${itemSelectSql(`${baseWhere} AND i.expiry_date <= CURRENT_DATE + $1::int`)}
-       ORDER BY i.expiry_date ASC, d.name ASC
-       LIMIT 100`,
-      [c.expiry_medium_days]
-    );
+    const { where, params } = expirySelection(options.filter, c);
     const byLocationResult = await client.query(
       `SELECT l.code_id AS location_id,
               l.name AS location_name,
@@ -404,11 +400,18 @@ async function apiGetDashboard() {
               COALESCE(SUM(i.qty), 0)::int AS qty
        FROM items i
        JOIN locations l ON l.id = i.location_id
-       WHERE ${baseWhere}
-         AND i.expiry_date <= CURRENT_DATE + $1::int
+       WHERE ${where}
        GROUP BY l.code_id, l.name
        ORDER BY COUNT(*) DESC`,
-      [c.expiry_medium_days]
+      params
+    );
+    const total = byLocationResult.rows.reduce((sum, row) => sum + Number(row.count), 0);
+    const pages = Math.max(1, Math.ceil(total / 50));
+    const requested = Number(options.page);
+    const page = Math.max(1, Math.min(pages, Number.isSafeInteger(requested) ? requested : 1));
+    const paging = options.page === undefined ? '' : ` LIMIT 50 OFFSET ${(page - 1) * 50}`;
+    const nearResult = await client.query(
+      `${itemSelectSql(where)} ORDER BY i.expiry_date, d.name, i.id${paging}`, params
     );
     const lowStock = await apiGetLowStock(client);
     const summary = {
@@ -424,6 +427,7 @@ async function apiGetDashboard() {
       status: 'success',
       summary,
       near: nearResult.rows.map(mapItem),
+      page, pages, total,
       by_location: byLocationResult.rows.map((row) => ({
         location_id: row.location_id,
         location_name: row.location_name,

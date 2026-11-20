@@ -6,7 +6,9 @@ export async function load({ locals, url }) {
   const user = requirePermission(locals, ['view']);
   const q = String(url.searchParams.get('q') || '').trim();
 
-  const dashboard = await handleApiPayload({ action: 'getDashboard', token: locals.token });
+  const selected = url.searchParams.get('filter');
+  const filter = ['crit', 'high', 'med'].includes(selected) ? selected : 'all';
+  const dashboard = await handleApiPayload({ action: 'getDashboard', token: locals.token, filter, page: url.searchParams.get('page') || 1 });
   if (dashboard.status !== 'success') {
     redirect(303, '/login');
   }
@@ -20,7 +22,7 @@ export async function load({ locals, url }) {
   }
 
   return {
-    user,
+    user, filter, page: dashboard.page, pages: dashboard.pages, total: dashboard.total,
     q,
     searchResults,
     summary: dashboard.summary,

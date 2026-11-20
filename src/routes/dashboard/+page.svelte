@@ -13,7 +13,8 @@
   let byLocation = [];
   let searchResults = [];
 
-  let filter = 'all';
+  $: filter = data.filter;
+  $: reportUrl = '/settings/report?kind=near&filter=' + filter;
   let byLocView = false;
   let searchInput;
   let searchTimer;
@@ -27,9 +28,9 @@
   let cards = [];
 
   function expiryBucket(days) {
-    if (days <= (thresholds.critical || 35)) return { cls: 'chip-crit', label: `${days} วัน` };
-    if (days <= (thresholds.high || 60)) return { cls: 'chip-high', label: `${days} วัน` };
-    if (days <= (thresholds.medium || 120)) return { cls: 'chip-med', label: `${days} วัน` };
+    if (days <= (thresholds.critical ?? 35)) return { cls: 'chip-crit', label: `${days} วัน` };
+    if (days <= (thresholds.high ?? 60)) return { cls: 'chip-high', label: `${days} วัน` };
+    if (days <= (thresholds.medium ?? 120)) return { cls: 'chip-med', label: `${days} วัน` };
     return { cls: 'chip-safe', label: `${days} วัน` };
   }
 
@@ -86,29 +87,22 @@
   $: byLocation = data.byLocation || [];
   $: searchResults = data.searchResults || [];
   $: cards = [
-    { id: 'crit', icon: 'bi-exclamation-triangle-fill', label: `ภายใน ${thresholds.critical || 35} วัน`, value: summary.within35 || 0, tone: 'crit' },
-    { id: 'high', icon: 'bi-calendar-event-fill', label: `ภายใน ${thresholds.high || 60} วัน`, value: summary.within60 || 0, tone: 'high' },
-    { id: 'med', icon: 'bi-calendar3', label: `ภายใน ${thresholds.medium || 120} วัน`, value: summary.within120 || 0, tone: 'med' },
-    { id: '', icon: 'bi-check2-circle', label: `มากกว่า ${thresholds.medium || 120} วัน`, value: summary.over120 || 0, tone: 'safe' }
+    { id: 'crit', icon: 'bi-exclamation-triangle-fill', label: `ภายใน ${thresholds.critical ?? 35} วัน`, value: summary.within35 || 0, tone: 'crit' },
+    { id: 'high', icon: 'bi-calendar-event-fill', label: `${(thresholds.critical ?? 35) + 1}–${thresholds.high ?? 60} วัน`, value: summary.within60 || 0, tone: 'high' },
+    { id: 'med', icon: 'bi-calendar3', label: `${(thresholds.high ?? 60) + 1}–${thresholds.medium ?? 120} วัน`, value: summary.within120 || 0, tone: 'med' },
+    { id: '', icon: 'bi-check2-circle', label: `มากกว่า ${thresholds.medium ?? 120} วัน`, value: summary.over120 || 0, tone: 'safe' }
   ];
-
-  $: filteredNear = near.filter((item) => {
-    if (filter === 'crit') return item.days <= (thresholds.critical || 35);
-    if (filter === 'high') return item.days > (thresholds.critical || 35) && item.days <= (thresholds.high || 60);
-    if (filter === 'med') return item.days > (thresholds.high || 60) && item.days <= (thresholds.medium || 120);
-    return true;
-  });
 
   $: listTitle = data.q
     ? 'ผลการค้นหา'
     : byLocView
       ? 'ใกล้หมดอายุ แยกสถานที่'
       : filter === 'crit'
-        ? `ใกล้หมดอายุ ภายใน ${thresholds.critical || 35} วัน`
+        ? `ใกล้หมดอายุ ภายใน ${thresholds.critical ?? 35} วัน`
         : filter === 'high'
-          ? `ใกล้หมดอายุ ${(thresholds.critical || 35) + 1}-${thresholds.high || 60} วัน`
+          ? `ใกล้หมดอายุ ${(thresholds.critical ?? 35) + 1}-${thresholds.high ?? 60} วัน`
           : filter === 'med'
-            ? `ใกล้หมดอายุ ${(thresholds.high || 60) + 1}-${thresholds.medium || 120} วัน`
+            ? `ใกล้หมดอายุ ${(thresholds.high ?? 60) + 1}-${thresholds.medium ?? 120} วัน`
             : 'รายการใกล้หมดอายุ';
 </script>
 
@@ -127,7 +121,7 @@
         class={`stat-card ${card.tone} ${card.id ? 'tappable' : ''} ${filter === card.id ? 'on' : ''}`}
         onclick={() => {
           if (!card.id) return;
-          filter = filter === card.id ? 'all' : card.id;
+          goto('/dashboard?filter=' + (filter === card.id ? 'all' : card.id), { noScroll: true });
           byLocView = false;
         }}
       >
@@ -168,6 +162,10 @@
   <div style="display:flex;justify-content:space-between;align-items:center;margin:20px 4px 12px;gap:12px;flex-wrap:wrap">
     <div class="section-label" style="margin:0">{listTitle}</div>
     {#if !data.q}
+      <div class="report-actions">
+        <a class="btn-ghost" href={reportUrl} target="_blank" rel="noreferrer">พิมพ์รายงาน</a>
+        <a class="btn-ghost" href={reportUrl + '&format=xlsx'} download="expiry-report.xlsx">ดาวน์โหลด Excel</a>
+      </div>
       <button id="byLocToggle" class="link-btn" type="button" onclick={() => { byLocView = !byLocView; }}>
         {byLocView ? 'ดูเป็นรายการ' : 'ดูแยกสถานที่'}
       </button>
@@ -223,8 +221,8 @@
       {:else}
         <div class="hint">ไม่มีรายการใกล้หมดอายุ</div>
       {/if}
-    {:else if filteredNear.length}
-      {#each filteredNear as item}
+    {:else if near.length}
+      {#each near as item}
         {@const thumb = drugThumb(item.image_url)}
         {@const bucket = expiryBucket(item.days)}
         <div class="scan-row">
@@ -249,9 +247,17 @@
       </div>
     {/if}
   </div>
+  {#if !data.q && !byLocView && data.pages > 1}
+    <nav class="report-actions" aria-label="หน้ารายการยาใกล้หมดอายุ">
+      {#if data.page > 1}<a class="btn-ghost" href={`/dashboard?filter=${filter}&page=${data.page - 1}`}>ก่อนหน้า</a>{/if}
+      <span>หน้า {data.page} จาก {data.pages} · {data.total} รายการ</span>
+      {#if data.page < data.pages}<a class="btn-ghost" href={`/dashboard?filter=${filter}&page=${data.page + 1}`}>ถัดไป</a>{/if}
+    </nav>
+  {/if}
 </main>
 
 <style>
+  .report-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
   .dashboard-shell {
     padding: 0;
   }

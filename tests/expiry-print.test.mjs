@@ -26,6 +26,18 @@ test('expiry print groups the complete selection, escapes values and orders lots
         date('now',CASE WHEN n%3=0 THEN '-1 day' ELSE '+1 day' END),'Lot-'||n
       FROM lots;
   `);
+  db.exec(`
+    ALTER TABLE app_config ADD COLUMN expiry_high_days DEFAULT 60;
+    ALTER TABLE app_config ADD COLUMN expiry_critical_days DEFAULT 35;
+    ALTER TABLE drugs ADD COLUMN active DEFAULT 1;
+    ALTER TABLE drugs ADD COLUMN unit DEFAULT 'box';
+    ALTER TABLE drugs ADD COLUMN min_qty DEFAULT 0;
+    CREATE TABLE sessions(user_id,code_id,expires_at);
+    CREATE TABLE app_users(id,code_id,username,role,name,permissions,active);
+    INSERT INTO app_users VALUES(1,'u','viewer','viewer','Viewer','["view"]',1);
+    INSERT INTO sessions VALUES(1,'fixture','2099-01-01');
+    UPDATE items SET expiry_date=date('now','+7 hours','+36 days') WHERE id=103;
+  `);
   db.close();
 
   const vite = await createServer({ server: { middlewareMode: true }, appType: 'custom', logLevel: 'error' });
@@ -35,6 +47,16 @@ test('expiry print groups the complete selection, escapes values and orders lots
       locals: { user: { permissions: ['view'] } },
       url: new URL('http://localhost/settings/report?kind=near')
     });
+    const { load } = await vite.ssrLoadModule('/src/routes/dashboard/+page.server.js');
+    const locals = { user: { permissions: ['view'] }, token: 'fixture' };
+    const dashboard = query => load({ locals, url: new URL('http://localhost/dashboard?' + query) });
+    const last = await dashboard('page=3');
+    assert.equal(last.pages, 3);
+    assert.equal(last.near.length, 3);
+    const selected = await dashboard('filter=high');
+    assert.deepEqual(selected.near.map(item => item.lot_no), ['Lot-103']);
+    const filteredPrint = await GET({ locals, url: new URL('http://localhost/settings/report?filter=high') });
+    assert.deepEqual((await filteredPrint.text()).match(/Lot-\d+/g), ['Lot-103']);
     const html = await response.text();
     assert.equal(response.status, 200);
     assert.match(html, /รวม 103 รายการ/);

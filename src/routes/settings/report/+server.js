@@ -1,3 +1,4 @@
+import { expirySelection } from '$lib/server/expiry-selection.js';
 import writeXlsxFile from 'write-excel-file/node';
 import { requirePermission } from '$lib/server/permissions.js';
 import { handleApiPayload } from '../../../../server/index.js';
@@ -5,7 +6,7 @@ import { handleApiPayload } from '../../../../server/index.js';
 import { readConfig } from '$lib/server/api-config.js';
 import { pool } from '$lib/server/postgres.js';
 import { itemSelectSql, mapItem } from '$lib/server/api-helpers.js';
-import { expiryByLocation, notificationExpiryWhere } from '$lib/server/notification-content.js';
+import { expiryByLocation } from '$lib/server/notification-content.js';
 
 function esc(value) {
   return String(value == null ? '' : value)
@@ -95,7 +96,8 @@ export async function GET({ locals, url }) {
   }
 
   const config = await readConfig();
-  const { rows } = await pool.query(itemSelectSql(notificationExpiryWhere()), [config.expiry_medium_days, true]);
+  const { where, params } = expirySelection(url.searchParams.get('filter'), config);
+  const { rows } = await pool.query(itemSelectSql(where), params);
   const locations = expiryByLocation(rows.map(mapItem));
   const columns = ['ลำดับ', 'ยา', 'Lot', 'วันหมดอายุ', 'เหลือ (วัน)', 'จำนวน'];
   if (url.searchParams.get('format') === 'xlsx') {
