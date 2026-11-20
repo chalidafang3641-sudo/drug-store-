@@ -45,7 +45,7 @@
 .pager-arrow[aria-disabled="true"] { opacity: .32; }
 .pager a:focus-visible, .pager select:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
 .pager-print { color: var(--brand-ink, #245338); text-underline-offset: 3px; }
-.pager-inline { flex-wrap: nowrap; padding: 5px 8px; gap: 4px; overflow-x: auto; }
+.pager-inline { flex-wrap: nowrap; padding: 5px 8px; gap: 4px; }
 @media (max-width: 560px) {
   .pager { padding: 5px; gap: 4px; font-size: 13px; }
   .pager-position, .pager-steps { gap: 3px; }
@@ -53,3 +53,24 @@
   .pager-print { flex-basis: 100%; }
 }
 @media print { .pager { display: none; } }
+
+.size-menu { position: relative; flex: none; }
+.size-menu summary, .size-options a {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  min-height: 42px; padding-inline: 10px; color: inherit; cursor: pointer;
+}
+.size-menu summary {
+  list-style: none; border: 1px solid var(--line); border-radius: 9px;
+}
+.size-menu summary::-webkit-details-marker { display: none; }
+.size-menu[open] summary, .size-options a[aria-current] {
+  color: var(--brand-ink); background: var(--brand-soft);
+}
+.size-options {
+  position: absolute; inset-inline-start: 0; top: calc(100% + 4px); z-index: 5;
+  min-width: 112px; padding: 4px; border: 1px solid var(--line); border-radius: 10px;
+  background: var(--card); box-shadow: 0 4px 16px #0002;
+}
+.size-options a { text-decoration: none; border-radius: 7px; white-space: nowrap; }
+.size-options a:hover { background: var(--brand-soft); }
+.size-menu summary:focus-visible { outline: 2px solid var(--brand); }

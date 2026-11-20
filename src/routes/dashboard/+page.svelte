@@ -17,6 +17,19 @@
   $: reportUrl = '/settings/report?kind=near&filter=' + filter;
   let byLocView = false;
   let searchInput;
+  let sizeMenu;
+
+  function dismissSizeMenu(event) {
+    if (sizeMenu?.open && !sizeMenu.contains(event.target)) sizeMenu.open = false;
+  }
+
+  function closeOnEscape(event) {
+    if (event.key === 'Escape' && sizeMenu?.open) {
+      sizeMenu.open = false;
+      sizeMenu.querySelector('summary').focus();
+    }
+  }
+
   let searchTimer;
 
   const today = new Date().toLocaleDateString('th-TH', {
@@ -108,6 +121,8 @@
 
 <svelte:head><link rel="stylesheet" href="/css/pagination.css" /></svelte:head>
 
+<svelte:window onpointerdown={dismissSizeMenu} onfocusin={dismissSizeMenu} onkeydown={closeOnEscape} />
+
 <main class="dashboard-shell">
   <header class="overview-header">
     <div class="page-title">ภาพรวม</div>
@@ -173,10 +188,18 @@
 
   {#if !data.q && !byLocView}
     <nav class="pager pager-inline" aria-label="หน้ารายการยาใกล้หมดอายุ">
-      <select aria-label="จำนวนรายการต่อหน้า" value={data.size}
-        onchange={(event) => goto(`/dashboard?filter=${filter}&size=${event.currentTarget.value}`, { noScroll: true, keepFocus: true })}>
-        {#each [10, 25, 50, 100] as size}<option value={size}>{size} / หน้า</option>{/each}
-      </select>
+      <details class="size-menu" bind:this={sizeMenu}>
+        <summary aria-label={`จำนวนรายการต่อหน้า: ${data.size}`}>{data.size} / หน้า <span aria-hidden="true">⌄</span></summary>
+        <div class="size-options">
+          {#each [10, 25, 50, 100] as size}
+            <a href={`/dashboard?filter=${filter}&size=${size}`} data-sveltekit-noscroll
+              aria-current={data.size === size ? 'true' : undefined}
+              onclick={() => { sizeMenu.open = false; sizeMenu.querySelector('summary').focus(); }}>
+              {size} / หน้า {#if data.size === size}<span aria-hidden="true">✓</span>{/if}
+            </a>
+          {/each}
+        </div>
+      </details>
       <div class="pager-position">
         <strong>{data.total ? (data.page - 1) * data.size + 1 : 0}–{Math.min(data.page * data.size, data.total)} / {data.total}</strong>
       <div class="pager-steps">
